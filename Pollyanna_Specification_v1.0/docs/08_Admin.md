@@ -1,0 +1,5 @@
+# Admin
+
+-   Dashboard
+-   Settings
+-   Statistics
