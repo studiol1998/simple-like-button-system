@@ -1,0 +1,16 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Local configuration
+config.local.php
+
+# Composer
+/vendor/

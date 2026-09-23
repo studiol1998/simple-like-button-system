@@ -1,0 +1,93 @@
+Simple Like-button System
+
+Code Name : Pollyanna
+
+仕様書 Ver.0.1 Draft
+
+1. プロジェクト概要
+
+-   プロジェクト名: Simple Like-button System
+-   コードネーム: Pollyanna
+-   CMSやHTML構造に依存しない軽量な「いいね」システム。
+-   Identifier（識別子）を唯一のキーとして「いいね」の保存・集計を行う。
+
+2. 設計原則
+
+1.  シンプルであること
+2.  独立モジュールであること
+3.  HTML構造を解析しないこと
+4.  Identifierを唯一の識別子として扱うこと
+5.  ページマスターを持たないこと
+6.  HTML側の変更を最小限にすること
+7.  軽量であること
+8.  セキュリティを最優先すること
+9.  拡張性を確保すること
+10. Identifierに対して「いいね」を保存・集計するだけのエンジンであること
+
+3. 用語集
+
+-   Identifier: 「いいね」の対象を一意に識別する文字列
+-   Like: 利用者が送信する「いいね」
+-   Target: Identifierが示す対象
+-   Mode: Enabled / Maintenance / Disabled
+-   Dashboard: 管理画面トップ
+
+4. システム概要
+
+Browser → JavaScript → PHP API → MariaDB
+
+HTML側は Identifier を指定するだけ。
+
+    <div class="pollyanna"
+         data-like-identifier="格納庫・桜《外》（喪失。）">
+    </div>
+
+5. 利用者機能
+
+-   ハート型いいねボタン
+-   押下アニメーション
+-   AJAX通信
+-   メンテナンスメッセージ表示
+
+押下制限
+
+時間: - 30分 - 1時間 - 6時間 - 12時間 - 24時間
+
+回数: - 1回 - 5回 - 10回
+
+管理画面では安全な組み合わせのみ選択可能。
+
+6. 管理機能
+
+-   総いいね数
+-   今日・昨日・今週・今月
+-   Identifier別集計
+-   ランキング（管理画面のみ）
+-   システム設定
+
+7. セキュリティ
+
+-   Prepared Statement
+-   CSRF対策
+-   IPハッシュ
+-   User-Agentハッシュ
+-   Cookie
+-   localStorage
+-   レート制限
+-   BOT対策
+
+8. データベース方針
+
+テーブル: - like_settings - likes
+
+ページマスターは持たず、Identifierが初めて送信された時点で集計対象とする。
+
+9. 開発ロードマップ
+
+Phase1 設計 Phase2 DB Phase3 API Phase4 JavaScript Phase5 管理画面
+Phase6 セキュリティ・テスト
+
+10. 現在の設計方針
+
+PollyannaはIdentifierの意味を解釈しない。
+設置者が指定したIdentifierを保存・集計するだけとする。
