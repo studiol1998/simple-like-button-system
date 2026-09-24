@@ -23,7 +23,7 @@ The old beta is reference material for behavior and migration only; its code wil
 - Restore the liked state after reload for the same browser and identifier.
 - Account for browser identification in 0.0.1 so this does not require a later database redesign.
 
-### 0.0.3
+### 0.0.3 (complete)
 
 - Display the Like count.
 - Until the admin screen is available, toggle display with `show_like_count` in the configuration file. Its default is `false`.
