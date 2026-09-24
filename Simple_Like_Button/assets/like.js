@@ -26,6 +26,7 @@
         const identifier = (area.dataset.identifier || '').trim();
         const button = document.createElement('button');
         const status = document.createElement('span');
+        let statusTimer = null;
 
         button.type = 'button';
         button.className = 'pollyanna-like-button';
@@ -49,8 +50,12 @@
                 return;
             }
 
+            if (statusTimer !== null) {
+                window.clearTimeout(statusTimer);
+                statusTimer = null;
+            }
             button.disabled = true;
-            status.textContent = '送信中…';
+            status.textContent = '';
 
             try {
                 const response = await fetch(likeEndpoint, {
@@ -70,7 +75,11 @@
                 button.textContent = '♥';
                 button.classList.add('is-liked');
                 button.disabled = false;
-                status.textContent = '';
+                status.textContent = 'Good!';
+                statusTimer = window.setTimeout(() => {
+                    status.textContent = '';
+                    statusTimer = null;
+                }, 1000);
             } catch (error) {
                 button.disabled = false;
                 status.textContent = '送信できませんでした。通信を確認して、もう一度お試しください。';
