@@ -2,38 +2,44 @@
 
 This note consolidates the current specification and design drafts in the parent project for initial implementation. It does not replace the v1.0 specification or decide unresolved behavior.
 
-## Requirements already stated
+Decisions confirmed in discussion with Miyabi are recorded in [DatabaseDesignDecisionLog.en.md](DatabaseDesignDecisionLog.en.md). If they differ from the initial questions or recommendations at the end of this review, follow the decision log.
 
-- Store Like events and calculate aggregates from those events rather than storing aggregate values.
+See [ImplementationPlan.en.md](ImplementationPlan.en.md) for implementation stages and remaining work.
+
+## Core data policy
+
+- Store Likes as individual events first. After aggregation, delete those event rows and retain lifetime totals and period aggregates.
 - Do not store page titles, URLs, referrers, raw IP addresses, raw browser identifiers, or User-Agent values.
 - Treat `identifier` as an opaque string. Use UTF-8 (`utf8mb4`), with a maximum length of 50 characters. Trim leading and trailing whitespace before validation; reject empty values, newlines, and NUL characters.
-- Store `created_at` for time-based aggregation.
-- Store `client_hash` for rate limiting.
-- Use HMAC-SHA-256 with an installation-specific secret to create `ip_hash` as a secondary measure against rate-limit bypass. Store the secret in the generated config file, not in the database.
-- Store maintenance state and the configured rate-limit window and count in settings.
+- Keep UTC timestamps, `client_hash` for rate limiting, and `ip_hash` for abuse investigation on unaggregated Like events only for the periods required by each purpose.
+- Create `ip_hash` with HMAC-SHA-256 and an installation-specific secret; delete it within 60 days. Store the secret in the config file, not in the database.
+- Apply installation-wide rate limits per browser. Allow rate-limit records to expire after the configured window.
+- Trigger aggregation at the selected threshold (1,000 by default) or on admin access. Do not synchronously process a large backlog in one run.
+- Keep daily aggregates for at most five years and 50,000 rows, then roll older daily data into monthly aggregates. Make the 50,000-row cap adjustable through program configuration.
+- Implement time-of-day aggregation in the beta: group installation-wide Likes by month and two-hour slot in the active timezone, retaining the latest 24 months. Decide whether to include it in the public release after testing on Miyabi's site.
+- On a timezone change, finalize and archive lifetime, period, and time-of-day aggregates, including pending Likes, in `log/`; reset active data and start aggregation in the new timezone. Show a confirmation dialog before the change. After Yes, show progress stages “Aggregating current data” and “Saving aggregated data”; on completion, confirm that data was aggregated and saved to `log/`. Public counts restart at zero.
+- Use UTC for database timestamps. Public count display defaults to off and can be toggled in the admin screen.
+- Provide enabled and maintenance states only.
 
 ## Candidate fields from the current drafts
 
-### `likes` table
+### Individual events and aggregate data
 
-| Field | Stated requirement | Schema decision still needed |
+| Data | Policy | Implementation detail |
 | --- | --- | --- |
-| `id` | Event identifier | Integer width and generated-key syntax |
-| `identifier` | UTF-8, maximum 50 characters, non-empty after trimming | Exact SQL type and collation |
-| `created_at` | Submission time for time-based aggregates | Stored timezone and SQL type |
-| `client_hash` | Rate-limit key derived from a client-side identifier | Exact length/type and identifier lifecycle |
-| `ip_hash` | HMAC-SHA-256 secondary rate-limit key | Exact length/type and behavior when IP is unavailable |
+| Unaggregated Like events | Retain pending events and delete after successful aggregation | SQL types, indexes, transactional deletion |
+| Lifetime totals | Keep per-identifier totals during the current timezone period; archive and reset them when the timezone changes | Rebuild and correction behavior |
+| Period aggregates | Keep daily data up to five years/50,000 rows, keep monthly data for five years then roll it into retained yearly data; archive and reset on timezone change | Batch size |
+| Investigation `ip_hash` | Store only HMAC value and delete within 60 days | Behavior when IP is unavailable |
 
 ### `settings` table
 
-The drafts list maintenance state, limit time, and limit count. They do not specify singleton enforcement, allowed values, or whether the disabled mode from the beta is part of the current design.
+Settings include maintenance state, rate-limit window and count, public count visibility, and the automatic aggregation start threshold. The dropdown values are 1,000 (default), 2,000, 4,000, 6,000, 8,000, and 10,000 pending events. The daily aggregate row cap is a separate setting, initially 50,000 and adjustable through program configuration.
 
-## Questions to resolve before finalizing `install.sql`
+## Remaining design items before implementation
 
-1. Does the rate limit apply per client across the whole installation, per client and `identifier` pair, or both? The beta applied a global IP-based limit, but the current specification does not confirm that behavior.
-2. How long should Like events be retained? Keeping all events or defining a retention period affects statistics and storage growth.
-3. Which timezone defines daily and weekly statistics? The current drafts do not specify a timezone or the first day of the week.
-4. Should the current system have only enabled and maintenance states, or also a disabled state? The v1.0 admin draft mentions maintenance only; the beta has three states.
-5. How is the client identifier created, stored, and rotated? The draft mentions Cookie and LocalStorage but does not specify precedence or recovery behavior.
+1. Maximum batch size, resumption after failure, and protection against double counting.
+2. How to emit identifiers in CSVs so spreadsheet software does not mistakenly evaluate them as formulas.
+3. Whether to use `log/` or the `logs/` path listed in the parent specification.
 
-These points remain open. The legacy beta alone is not sufficient reason to decide them.
+See [DatabaseDesignDecisionLog.en.md](DatabaseDesignDecisionLog.en.md) for confirmed decisions and their history. Do not treat legacy beta behavior as current specification.
