@@ -10,7 +10,7 @@
 <body>
     <main>
         <h1>Pollyanna β-0.0.1 手動確認</h1>
-        <p>♡をタップし、サーバーへの保存が成功すると色つきの♥に変わり、「Good!」が1秒間表示されます。</p>
+        <p>♡をタップし、サーバーへの保存が成功すると色つきの♥に変わり、「Good!」が0.5秒間表示されます。</p>
 
         <section aria-labelledby="sample-title">
             <h2 id="sample-title">テスト対象：xampp-test-001</h2>
@@ -20,7 +20,7 @@
         <h2>確認手順</h2>
         <ol>
             <li>Apache と MySQL を起動し、DB設定と <code>install/install.sql</code> の実行を済ませます。</li>
-            <li>このページで♡をタップし、保存成功後に♥へ変わり、「Good!」が1秒後に消えることを確認します。</li>
+            <li>このページで♡をタップし、保存成功後に♥へ変わり、「Good!」が0.5秒後に消えることを確認します。</li>
             <li>phpMyAdminで <code>pollyanna_likes</code> を開き、<code>identifier</code> が <code>xampp-test-001</code> の行が追加されたことを確認します。</li>
         </ol>
 
