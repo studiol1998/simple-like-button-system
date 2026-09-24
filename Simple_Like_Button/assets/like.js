@@ -79,7 +79,7 @@
                 statusTimer = window.setTimeout(() => {
                     status.textContent = '';
                     statusTimer = null;
-                }, 1000);
+                }, 500);
             } catch (error) {
                 button.disabled = false;
                 status.textContent = '送信できませんでした。通信を確認して、もう一度お試しください。';
