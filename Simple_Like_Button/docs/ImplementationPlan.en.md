@@ -16,7 +16,7 @@ The old beta is reference material for behavior and migration only; its code wil
 
 - When a visitor taps ♡, change it to a filled, colored ♥ after the server accepts the Like.
 - Save the tap in the database.
-- Include input validation and a minimum browser-based rate limit.
+- Include input validation. Do not apply rate limits in 0.0.1; revisit them by 0.1.0 when admin and operational settings are added.
 
 ### 0.0.2
 

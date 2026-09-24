@@ -13,6 +13,25 @@ Pollyannaは、単独で動作する軽量ないいねボタンシステムで�
 
 旧PHPベータ版は `legacy/` に保存しています。現行仕様との対応と注意点は [docs/LegacyMigration.md](docs/LegacyMigration.md) を参照してください。
 
+## β-0.0.1（開発中）
+
+0.0.1では、♡をタップするとサーバーへ送信し、保存が成功した場合に色つきの♥へ変わります。押下イベントはMySQL互換データベースに保存します。再読み込み後の状態復元は0.0.2、押下数表示は0.0.3で予定しています。0.0.1ではレート制限を行いません。
+
+### 設置
+
+1. `config/config.example.php` を `config/config.php` にコピーし、データベース接続先・ユーザー名・パスワードを設定します。
+2. 32バイトのランダムな秘密鍵を生成し、`app_secret` に64文字の16進数で設定します。PHP CLIでは `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"` で生成できます。
+3. `install/install.sql` を対象データベースで実行します。
+4. HTMLに以下を追加し、`/Simple_Like_Button/` を設置先に合わせて変更します。
+
+```html
+<link rel="stylesheet" href="/Simple_Like_Button/assets/like.css">
+<div data-pollyanna-like data-identifier="article-001"></div>
+<script defer src="/Simple_Like_Button/assets/like.js"></script>
+```
+
+`data-identifier` にはページごとに一意な値を指定します。ブラウザ識別用トークンはLocalStorageに保存し、データベースには秘密鍵でHMAC化した値を保存します。生IPアドレスは保存しません。
+
 ## タイムゾーン変更時の注意
 
 タイムゾーンの変更は、運用する国・地域を変更するときに行う設定です。変更すると、未集計分を含むそれまでの累計いいね数・期間別集計データ・時間帯別集計データを確定し、変更ごとの日時入りフォルダーを `log/` に作成してCSVで保存したうえで、稼働中の集計データをリセットし、新しいタイムゾーンで集計を始めます。公開されるいいね件数も0から再開します。

@@ -1,0 +1,23 @@
+.pollyanna-like-button {
+    border: 0;
+    padding: 0.15em 0.25em;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 1.5em;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.pollyanna-like-button.is-liked {
+    color: #e53955;
+}
+
+.pollyanna-like-button:disabled {
+    cursor: default;
+}
+
+.pollyanna-like-status {
+    margin-inline-start: 0.5em;
+    font-size: 0.875em;
+}

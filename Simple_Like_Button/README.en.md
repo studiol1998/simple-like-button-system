@@ -13,6 +13,25 @@ Pollyanna is a lightweight, standalone Like-button system. This directory is the
 
 The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en.md](docs/LegacyMigration.en.md) for how it maps to the current specification and for known limitations.
 
+## Beta 0.0.1 (in development)
+
+In 0.0.1, tapping ♡ sends a Like to the server and changes it to a filled, colored ♥ after the Like is saved. Like events are stored in a MySQL-compatible database. State restoration after reload is planned for 0.0.2, and Like-count display for 0.0.3. Version 0.0.1 does not apply rate limits.
+
+### Installation
+
+1. Copy `config/config.example.php` to `config/config.php` and set the database DSN, username, and password.
+2. Generate a random 32-byte secret and set its 64-character hexadecimal form as `app_secret`. With PHP CLI: `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`.
+3. Run `install/install.sql` against the target database.
+4. Add the following to the HTML, changing `/Simple_Like_Button/` to the deployed path.
+
+```html
+<link rel="stylesheet" href="/Simple_Like_Button/assets/like.css">
+<div data-pollyanna-like data-identifier="article-001"></div>
+<script defer src="/Simple_Like_Button/assets/like.js"></script>
+```
+
+Set a unique value per page in `data-identifier`. The browser token is stored in LocalStorage; only its HMAC, generated with the installation secret, is stored in the database. Raw IP addresses are not stored.
+
 ## Important: Changing the Timezone
 
 Change the timezone when the country or region of operation changes. The system finalizes accumulated Like totals, period aggregates, and time-of-day aggregates, including pending Likes, saves them as CSV files in a timestamped folder under `log/`, resets the active aggregate data, and starts collecting under the new timezone. Public Like counts also restart at zero.
