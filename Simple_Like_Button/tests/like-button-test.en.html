@@ -3,13 +3,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pollyanna Beta 0.0.2 Manual Check</title>
+    <title>Pollyanna Beta 0.0.3 Manual Check</title>
     <link rel="stylesheet" href="../assets/like.css">
     <script defer src="../assets/like.js"></script>
 </head>
 <body>
     <main>
-        <h1>Pollyanna Beta 0.0.2 Manual Check</h1>
+        <h1>Pollyanna Beta 0.0.3 Manual Check</h1>
         <p>Tap ♡. After the server saves the Like, it changes to a filled, colored ♥ and displays “Good!” for 0.5 seconds.</p>
 
         <section aria-labelledby="sample-title">
@@ -23,10 +23,11 @@
             <li>Tap ♡ on this page. After a successful save, confirm that ♥ appears and “Good!” disappears after 0.5 seconds.</li>
             <li>Reload the page and confirm that the same browser restores the ♥ state.</li>
             <li>In a different browser, confirm that it starts at ♡ if it has not liked this identifier, then confirm that its ♥ state also returns after reload.</li>
+            <li>Set <code>show_like_count</code> to <code>true</code> in <code>config/config.php</code>. Reload and confirm that the count appears and increases after a Like. Set it back to <code>false</code> and confirm that the count is hidden.</li>
             <li>In phpMyAdmin, open <code>pollyanna_likes</code> and confirm that a row with identifier <code>xampp-state-test-001</code> was added.</li>
         </ol>
 
-        <p><strong>Check:</strong> The restored ♥ state is determined by saved data for the same browser and identifier. Clearing LocalStorage makes the browser appear as a new one.</p>
+        <p><strong>Check:</strong> The restored ♥ state is determined by saved data for the same browser and identifier. Clearing LocalStorage makes the browser appear as a new one. Count display is off by default.</p>
     </main>
 </body>
 </html>
