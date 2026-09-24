@@ -21,4 +21,19 @@ final class LikeService
             ':client_hash' => $clientHash,
         ]);
     }
+
+    public function hasLiked(string $identifier, string $clientHash): bool
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT 1 FROM pollyanna_likes '
+            . 'WHERE identifier = :identifier AND client_hash = :client_hash '
+            . 'LIMIT 1'
+        );
+        $statement->execute([
+            ':identifier' => $identifier,
+            ':client_hash' => $clientHash,
+        ]);
+
+        return $statement->fetchColumn() !== false;
+    }
 }

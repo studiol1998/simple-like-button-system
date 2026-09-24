@@ -18,7 +18,7 @@ The old beta is reference material for behavior and migration only; its code wil
 - Save the tap in the database.
 - Include input validation. Do not apply rate limits in 0.0.1; revisit them by 0.1.0 when admin and operational settings are added.
 
-### 0.0.2
+### 0.0.2 (complete)
 
 - Restore the liked state after reload for the same browser and identifier.
 - Account for browser identification in 0.0.1 so this does not require a later database redesign.
@@ -87,6 +87,13 @@ Define safe failure behavior, such as keeping the old timezone and active data i
 - Provide an endpoint that accepts a Like.
 - Implement the ♡ display, tap action, and filled colored ♥ state after successful storage.
 - Confirm the 0.0.1 acceptance criteria for successful and failed storage.
+
+### 1.1 0.0.2 state restoration
+
+- Add an API endpoint that checks saved Like events for the same browser token and identifier.
+- Query the endpoint when the page loads and restore the filled ♥ when a saved event exists.
+- Use the existing LocalStorage browser token and table; do not change the database schema.
+- Confirm restoration after reload and separation across browsers and identifiers.
 
 ### 2. Design for later stages
 

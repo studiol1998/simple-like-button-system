@@ -13,9 +13,9 @@ Pollyanna is a lightweight, standalone Like-button system. This directory is the
 
 The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en.md](docs/LegacyMigration.en.md) for how it maps to the current specification and for known limitations.
 
-## Beta 0.0.1 (in development)
+## Beta 0.0.2 (complete)
 
-In 0.0.1, tapping ♡ sends a Like to the server and changes it to a filled, colored ♥ after the Like is saved. Like events are stored in a MySQL-compatible database. State restoration after reload is planned for 0.0.2, and Like-count display for 0.0.3. Version 0.0.1 does not apply rate limits.
+In addition to the 0.0.1 Like submission and database storage, 0.0.2 checks the server for a saved Like from the same browser and identifier, restoring the filled ♥ after a reload. No database schema change is required. Like-count display is planned for 0.0.3. Rate limiting will be addressed by 0.1.0.
 
 ### Installation
 

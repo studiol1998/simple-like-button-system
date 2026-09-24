@@ -7,6 +7,7 @@
     }
 
     const likeEndpoint = new URL('../api/like.php', currentScript.src).toString();
+    const stateEndpoint = new URL('../api/state.php', currentScript.src).toString();
     const tokenStorageKey = 'pollyanna.client-token.v1';
 
     function getClientToken() {
@@ -44,6 +45,35 @@
             status.textContent = '識別子が設定されていません。';
             return;
         }
+
+        async function restoreState() {
+            button.disabled = true;
+            try {
+                const response = await fetch(stateEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        identifier,
+                        client_token: getClientToken(),
+                    }),
+                });
+                const result = await response.json();
+                if (!response.ok || result.success !== true || typeof result.liked !== 'boolean') {
+                    throw new Error('Like state was not loaded.');
+                }
+                if (result.liked) {
+                    button.textContent = '♥';
+                    button.classList.add('is-liked');
+                }
+            } catch (error) {
+                button.disabled = false;
+                status.textContent = '押下状態を確認できませんでした。';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        restoreState();
 
         button.addEventListener('click', async () => {
             if (button.disabled) {
