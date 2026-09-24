@@ -9,4 +9,6 @@ return [
     ],
     // Generate a unique 64-character hexadecimal value for each installation.
     'app_secret' => 'replace-with-64-hexadecimal-characters-generated-randomly',
+    // Publicly display Like counts on the embedded button.
+    'show_like_count' => false,
 ];

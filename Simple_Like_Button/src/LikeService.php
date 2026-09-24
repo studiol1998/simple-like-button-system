@@ -36,4 +36,14 @@ final class LikeService
 
         return $statement->fetchColumn() !== false;
     }
+
+    public function count(string $identifier): int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM pollyanna_likes WHERE identifier = :identifier'
+        );
+        $statement->execute([':identifier' => $identifier]);
+
+        return (int) $statement->fetchColumn();
+    }
 }

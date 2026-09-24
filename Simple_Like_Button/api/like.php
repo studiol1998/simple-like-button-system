@@ -50,7 +50,15 @@ try {
     $clientHash = hash_hmac('sha256', strtolower($clientToken), $config['app_secret']);
     $service = new LikeService(pollyanna_pdo());
     $service->record($identifier, $clientHash);
-    pollyanna_json_response(201, ['success' => true]);
+    $response = ['success' => true];
+    if (pollyanna_count_display_enabled()) {
+        try {
+            $response['count'] = $service->count($identifier);
+        } catch (Throwable $countError) {
+            error_log('Pollyanna Like count request failed: ' . $countError->getMessage());
+        }
+    }
+    pollyanna_json_response(201, $response);
 } catch (Throwable $error) {
     error_log('Pollyanna Like request failed: ' . $error->getMessage());
     pollyanna_json_response(503, ['success' => false, 'message' => 'Like could not be saved.']);

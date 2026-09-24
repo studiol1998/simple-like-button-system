@@ -17,6 +17,10 @@ The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en
 
 In addition to the 0.0.1 Like submission and database storage, 0.0.2 checks the server for a saved Like from the same browser and identifier, restoring the filled ♥ after a reload. No database schema change is required. Like-count display is planned for 0.0.3. Rate limiting will be addressed by 0.1.0.
 
+## Beta 0.0.3 (in development)
+
+0.0.3 adds an optional Like count. Until the admin screen is available, toggle it with `show_like_count` in `config/config.php`. It defaults to `false` (hidden). When enabled, the saved Like-event count for each identifier appears on page load and after a Like is submitted. The count uses a subtle gray by default; setting its color in the admin screen is planned for 0.1.0.
+
 ### Installation
 
 1. Copy `config/config.example.php` to `config/config.php` and set the database DSN, username, and password.

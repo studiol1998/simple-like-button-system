@@ -26,7 +26,9 @@ The old beta is reference material for behavior and migration only; its code wil
 ### 0.0.3
 
 - Display the Like count.
-- Until the admin screen is available, use a configuration-file setting to turn count display on or off.
+- Until the admin screen is available, toggle display with `show_like_count` in the configuration file. Its default is `false`.
+- Do not return the count from the public API while display is disabled.
+- Before aggregation is introduced, 0.0.3 displays the number of saved Like events for each identifier.
 
 ### 0.0.4
 
@@ -36,7 +38,7 @@ The old beta is reference material for behavior and migration only; its code wil
 ### 0.1.0
 
 - Bundle the admin screen and the functions needed for installation and operation for testing on Miyabi's site.
-- Allow settings such as rate limits and public count visibility to be managed in the admin screen.
+- Allow settings such as rate limits, public count visibility, and count display color to be managed in the admin screen.
 - Decide whether to include time-of-day aggregates in the public release after testing on the site.
 
 For 0.0.1, prioritize making the Like action and database storage work; do not build all version features at once. Provide a minimal indication if sending or saving fails.

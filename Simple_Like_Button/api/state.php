@@ -49,10 +49,14 @@ try {
     $config = pollyanna_config();
     $clientHash = hash_hmac('sha256', strtolower($clientToken), $config['app_secret']);
     $service = new LikeService(pollyanna_pdo());
-    pollyanna_json_response(200, [
+    $response = [
         'success' => true,
         'liked' => $service->hasLiked($identifier, $clientHash),
-    ]);
+    ];
+    if (pollyanna_count_display_enabled()) {
+        $response['count'] = $service->count($identifier);
+    }
+    pollyanna_json_response(200, $response);
 } catch (Throwable $error) {
     error_log('Pollyanna Like state request failed: ' . $error->getMessage());
     pollyanna_json_response(503, ['success' => false, 'message' => 'Like state could not be loaded.']);

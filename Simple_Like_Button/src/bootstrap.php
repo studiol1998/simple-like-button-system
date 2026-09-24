@@ -61,6 +61,11 @@ function pollyanna_pdo(): PDO
     return $pdo;
 }
 
+function pollyanna_count_display_enabled(): bool
+{
+    return (pollyanna_config()['show_like_count'] ?? false) === true;
+}
+
 function pollyanna_json_response(int $status, array $body): void
 {
     http_response_code($status);

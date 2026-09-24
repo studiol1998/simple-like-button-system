@@ -26,6 +26,7 @@
     function initialize(area) {
         const identifier = (area.dataset.identifier || '').trim();
         const button = document.createElement('button');
+        const count = document.createElement('span');
         const status = document.createElement('span');
         let statusTimer = null;
 
@@ -34,16 +35,28 @@
         button.textContent = '♡';
         button.setAttribute('aria-label', 'いいねを送信');
 
+        count.className = 'pollyanna-like-count';
+        count.setAttribute('aria-label', 'いいね数');
+        count.hidden = true;
+
         status.className = 'pollyanna-like-status';
         status.setAttribute('role', 'status');
         status.setAttribute('aria-live', 'polite');
 
-        area.replaceChildren(button, status);
+        area.replaceChildren(button, count, status);
 
         if (!identifier) {
             button.disabled = true;
             status.textContent = '識別子が設定されていません。';
             return;
+        }
+
+        function updateCount(result) {
+            if (Number.isSafeInteger(result.count) && result.count >= 0) {
+                count.textContent = String(result.count);
+                count.setAttribute('aria-label', `いいね数 ${result.count}`);
+                count.hidden = false;
+            }
         }
 
         async function restoreState() {
@@ -65,6 +78,7 @@
                     button.textContent = '♥';
                     button.classList.add('is-liked');
                 }
+                updateCount(result);
             } catch (error) {
                 button.disabled = false;
                 status.textContent = '押下状態を確認できませんでした。';
@@ -105,6 +119,7 @@
                 button.textContent = '♥';
                 button.classList.add('is-liked');
                 button.disabled = false;
+                updateCount(result);
                 status.textContent = 'Good!';
                 statusTimer = window.setTimeout(() => {
                     status.textContent = '';
