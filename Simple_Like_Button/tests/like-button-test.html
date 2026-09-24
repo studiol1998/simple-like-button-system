@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pollyanna β-0.0.1 手動確認</title>
+    <link rel="stylesheet" href="../assets/like.css">
+    <script defer src="../assets/like.js"></script>
+</head>
+<body>
+    <main>
+        <h1>Pollyanna β-0.0.1 手動確認</h1>
+        <p>♡をタップし、サーバーへの保存が成功すると色つきの♥に変わります。</p>
+
+        <section aria-labelledby="sample-title">
+            <h2 id="sample-title">テスト対象：xampp-test-001</h2>
+            <div data-pollyanna-like data-identifier="xampp-test-001"></div>
+        </section>
+
+        <h2>確認手順</h2>
+        <ol>
+            <li>Apache と MySQL を起動し、DB設定と <code>install/install.sql</code> の実行を済ませます。</li>
+            <li>このページで♡をタップし、保存成功後に♥へ変わることを確認します。</li>
+            <li>phpMyAdminで <code>pollyanna_likes</code> を開き、<code>identifier</code> が <code>xampp-test-001</code> の行が追加されたことを確認します。</li>
+        </ol>
+
+        <p><strong>0.0.1の仕様：</strong>再読み込み後の状態復元はまだありません。再読み込みすると♡表示に戻りますが、保存済みの行はDBに残ります。</p>
+    </main>
+</body>
+</html>

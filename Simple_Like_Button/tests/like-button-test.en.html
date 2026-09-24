@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pollyanna Beta 0.0.1 Manual Check</title>
+    <link rel="stylesheet" href="../assets/like.css">
+    <script defer src="../assets/like.js"></script>
+</head>
+<body>
+    <main>
+        <h1>Pollyanna Beta 0.0.1 Manual Check</h1>
+        <p>Tap ♡. It changes to a filled, colored ♥ after the server saves the Like.</p>
+
+        <section aria-labelledby="sample-title">
+            <h2 id="sample-title">Test identifier: xampp-test-001</h2>
+            <div data-pollyanna-like data-identifier="xampp-test-001"></div>
+        </section>
+
+        <h2>Steps</h2>
+        <ol>
+            <li>Start Apache and MySQL, configure the database connection, and run <code>install/install.sql</code>.</li>
+            <li>Tap ♡ on this page and confirm that it changes to ♥ after a successful save.</li>
+            <li>In phpMyAdmin, open <code>pollyanna_likes</code> and confirm that a row with identifier <code>xampp-test-001</code> was added.</li>
+        </ol>
+
+        <p><strong>Version 0.0.1:</strong> State restoration after reload is not implemented yet. The button returns to ♡ after reload, while the saved database row remains.</p>
+    </main>
+</body>
+</html>
