@@ -3,28 +3,30 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pollyanna β-0.0.1 手動確認</title>
+    <title>Pollyanna β-0.0.2 手動確認</title>
     <link rel="stylesheet" href="../assets/like.css">
     <script defer src="../assets/like.js"></script>
 </head>
 <body>
     <main>
-        <h1>Pollyanna β-0.0.1 手動確認</h1>
+        <h1>Pollyanna β-0.0.2 手動確認</h1>
         <p>♡をタップし、サーバーへの保存が成功すると色つきの♥に変わり、「Good!」が0.5秒間表示されます。</p>
 
         <section aria-labelledby="sample-title">
-            <h2 id="sample-title">テスト対象：xampp-test-001</h2>
-            <div data-pollyanna-like data-identifier="xampp-test-001"></div>
+            <h2 id="sample-title">テスト対象：xampp-state-test-001</h2>
+            <div data-pollyanna-like data-identifier="xampp-state-test-001"></div>
         </section>
 
         <h2>確認手順</h2>
         <ol>
             <li>Apache と MySQL を起動し、DB設定と <code>install/install.sql</code> の実行を済ませます。</li>
             <li>このページで♡をタップし、保存成功後に♥へ変わり、「Good!」が0.5秒後に消えることを確認します。</li>
-            <li>phpMyAdminで <code>pollyanna_likes</code> を開き、<code>identifier</code> が <code>xampp-test-001</code> の行が追加されたことを確認します。</li>
+            <li>ページを再読み込みし、同じブラウザでは♥表示に戻ることを確認します。</li>
+            <li>別のブラウザでは未押下なら♡表示になり、そのブラウザで押した後の再読み込みでは♥表示に戻ることを確認します。</li>
+            <li>phpMyAdminで <code>pollyanna_likes</code> を開き、<code>identifier</code> が <code>xampp-state-test-001</code> の行が追加されたことを確認します。</li>
         </ol>
 
-        <p><strong>0.0.1の仕様：</strong>再読み込み後の状態復元はまだありません。再読み込みすると♡表示に戻りますが、保存済みの行はDBに残ります。</p>
+        <p><strong>確認内容：</strong>♥の復元状態は同じブラウザ・同じ識別子ごとに保存済みデータから判定されます。LocalStorageを消去すると別のブラウザとして扱われます。</p>
     </main>
 </body>
 </html>
