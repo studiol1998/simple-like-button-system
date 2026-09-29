@@ -1,3 +1,7 @@
+.pollyanna-like-area {
+    text-align: left;
+}
+
 .pollyanna-like-button {
     border: 0;
     padding: 0.15em 0.25em;
@@ -17,9 +21,19 @@
     cursor: default;
 }
 
-.pollyanna-like-status {
-    margin-inline-start: 0.5em;
+.pollyanna-like-area > .pollyanna-like-status {
+    display: block !important;
+    margin-block-start: 0.25em;
+    margin-inline-start: 0 !important;
     font-size: 0.875em;
+    /* 2行表示: pre-line にすると widget.*.json の \n で改行します（現在の設定）。
+     * 1行表示: normal に変更すると JSON の改行は空白になります。
+     * 狭い画面では、どちらの設定でも幅に合わせて折り返されます。
+     * Two lines: pre-line keeps the \n in widget.*.json (current setting).
+     * One line: change this to normal; the JSON line break becomes a space.
+       Narrow screens may wrap either setting to fit the available width. */
+    white-space: pre-line; /* pre-line：2行表示、normal：1行表示 */
+                           /* pre-line: display on two lines; normal: display on one line. */
 }
 
 .pollyanna-like-count {

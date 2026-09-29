@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/bootstrap.php';
 require_once dirname(__DIR__) . '/src/LikeService.php';
+require_once dirname(__DIR__) . '/src/AggregationService.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     header('Allow: POST');
@@ -46,11 +47,47 @@ if (preg_match('/\A[a-f0-9]{64}\z/i', $clientToken) !== 1) {
 }
 
 try {
+    $widgetText = pollyanna_widget_runtime_text();
+    $pdo = pollyanna_pdo();
+    if (!pollyanna_acquire_like_request_lock($pdo)) {
+        pollyanna_json_response(503, ['success' => false, 'message' => 'Like service is busy. Please try again.']);
+    }
+    if (pollyanna_system_state() === 'maintenance') {
+        pollyanna_json_response(503, [
+            'success' => false,
+            'maintenance' => true,
+            'widget_text' => $widgetText,
+            'message' => 'The Like service is under maintenance.',
+        ]);
+    }
+
     $config = pollyanna_config();
+    $successMessage = pollyanna_widget_success_message();
     $clientHash = hash_hmac('sha256', strtolower($clientToken), $config['app_secret']);
-    $service = new LikeService(pollyanna_pdo());
-    $service->record($identifier, $clientHash);
+    $service = new LikeService($pdo);
+    if (!$service->recordWithinLimit($identifier, $clientHash, pollyanna_rate_limit())) {
+        pollyanna_json_response(429, [
+            'success' => false,
+            'rate_limited' => true,
+            'widget_text' => $widgetText,
+            'message' => $widgetText['rate_limit'],
+        ]);
+    }
+    try {
+        $aggregationSettings = pollyanna_aggregation_settings();
+        if ($service->pendingCount() >= $aggregationSettings['aggregation_start_threshold']) {
+            $aggregator = new AggregationService($pdo);
+            $aggregator->aggregateBatch(
+                $aggregationSettings['aggregation_batch_size'],
+                $aggregationSettings['timezone']
+            );
+        }
+    } catch (Throwable $aggregationError) {
+        error_log('Pollyanna automatic aggregation failed: ' . $aggregationError->getMessage());
+    }
     $response = ['success' => true];
+    $response['success_message'] = $successMessage;
+    $response['widget_text'] = $widgetText;
     if (pollyanna_count_display_enabled()) {
         try {
             $response['count'] = $service->count($identifier);

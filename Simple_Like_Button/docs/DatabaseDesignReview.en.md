@@ -13,10 +13,10 @@ See [ImplementationPlan.en.md](ImplementationPlan.en.md) for implementation stag
 - Treat `identifier` as an opaque string. Use UTF-8 (`utf8mb4`), with a maximum length of 50 characters. Trim leading and trailing whitespace before validation; reject empty values, newlines, and NUL characters.
 - Keep UTC timestamps, `client_hash` for rate limiting, and `ip_hash` for abuse investigation on unaggregated Like events only for the periods required by each purpose.
 - Create `ip_hash` with HMAC-SHA-256 and an installation-specific secret; delete it within 60 days. Store the secret in the config file, not in the database.
-- Apply installation-wide rate limits per browser. Allow rate-limit records to expire after the configured window.
+- Apply rate limits per Like ID and anonymous browser: 1–5 accepted Likes (default 3) in the rolling last 24 hours. Delete expired dedicated rate-limit records on the next Like.
 - Trigger aggregation at the selected threshold (1,000 by default) or on admin access. Do not synchronously process a large backlog in one run.
 - Keep daily aggregates for at most five years and 50,000 rows, then roll older daily data into monthly aggregates. Make the 50,000-row cap adjustable through program configuration.
-- Implement time-of-day aggregation in the beta: group installation-wide Likes by month and two-hour slot in the active timezone, retaining the latest 24 months. Decide whether to include it in the public release after testing on Miyabi's site.
+- Implement time-of-day aggregation in the beta: group installation-wide Likes by month and hour in the active timezone, retaining the latest 24 months. Decide whether to include it in the public release after testing on Miyabi's site.
 - On a timezone change, finalize and archive lifetime, period, and time-of-day aggregates, including pending Likes, in `log/`; reset active data and start aggregation in the new timezone. Show a confirmation dialog before the change. After Yes, show progress stages “Aggregating current data” and “Saving aggregated data”; on completion, confirm that data was aggregated and saved to `log/`. Public counts restart at zero.
 - Use UTC for database timestamps. Public count display defaults to off and can be toggled in the admin screen.
 - Provide enabled and maintenance states only.
@@ -29,17 +29,19 @@ See [ImplementationPlan.en.md](ImplementationPlan.en.md) for implementation stag
 | --- | --- | --- |
 | Unaggregated Like events | Retain pending events and delete after successful aggregation | SQL types, indexes, transactional deletion |
 | Lifetime totals | Keep per-identifier totals during the current timezone period; archive and reset them when the timezone changes | Rebuild and correction behavior |
-| Period aggregates | Keep daily data up to five years/50,000 rows, keep monthly data for five years then roll it into retained yearly data; archive and reset on timezone change | Batch size |
+| Period aggregates | Keep daily data up to five years/50,000 rows, keep monthly data for five years then roll it into retained yearly data; archive and reset on timezone change | Batches up to 500; aggregate updates and source-event deletion share one transaction |
 | Investigation `ip_hash` | Store only HMAC value and delete within 60 days | Behavior when IP is unavailable |
 
 ### `settings` table
 
 Settings include maintenance state, rate-limit window and count, public count visibility, and the automatic aggregation start threshold. The dropdown values are 1,000 (default), 2,000, 4,000, 6,000, 8,000, and 10,000 pending events. The daily aggregate row cap is a separate setting, initially 50,000 and adjustable through program configuration.
 
-## Remaining design items before implementation
+## Remaining verification items
 
-1. Maximum batch size, resumption after failure, and protection against double counting.
-2. How to emit identifiers in CSVs so spreadsheet software does not mistakenly evaluate them as formulas.
-3. Whether to use `log/` or the `logs/` path listed in the parent specification.
+Rollback/retry after aggregation failure and prevention of concurrent runs were verified on 2026-09-29 using an isolated database on XAMPP MariaDB. See [DatabaseDesignDecisionLog.en.md](DatabaseDesignDecisionLog.en.md) for details.
+
+CSV formula protection was verified in Microsoft Excel on 2026-09-29 by opening an archive containing synthetic formula-like identifiers; the identifiers remained text and were not evaluated.
+
+1. Configure direct-access denial for `log/` on non-Apache web servers.
 
 See [DatabaseDesignDecisionLog.en.md](DatabaseDesignDecisionLog.en.md) for confirmed decisions and their history. Do not treat legacy beta behavior as current specification.

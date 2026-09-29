@@ -1,0 +1,26 @@
+{
+  "language_name": "日本語",
+  "button_label": "いいねを送信",
+  "count_label": "いいね数",
+  "identifier_missing": "識別子が設定されていません。",
+  "state_unavailable": "押下状態を確認できませんでした。",
+  "maintenance": "メンテナンス中です。",
+  "send_error": "送信できませんでした。通信を確認して、もう一度お試しください。",
+  "rate_limit": "この作品への「いいね」上限に達しました。\n約24時間後にまた「いいね」できます。",
+
+"_editing_guide": [
+  "【編集方法: 文言を変えるときは】",
+  "success_messages内のキー(like01等)を残して値だけ変更します。",
+  "【選択肢を増やすときは】",
+  "次の連番キー(like07等)を追加します。",
+  "日英両方で使う場合は同じキーをwidget.ja.jsonとwidget.en.jsonの両方に追加してください。"
+],
+  "success_messages": {
+    "like01": "いいね！",
+    "like02": "Good!",
+    "like03": "Like",
+    "like04": "Thanks!",
+    "like05": "ありがとう！",
+    "like06": "やったね！"
+  }
+}

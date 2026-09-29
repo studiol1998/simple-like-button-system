@@ -13,31 +13,47 @@ Pollyanna is a lightweight, standalone Like-button system. This directory is the
 
 The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en.md](docs/LegacyMigration.en.md) for how it maps to the current specification and for known limitations.
 
-## Beta 0.0.2 (complete)
+## Current features
 
-In addition to the 0.0.1 Like submission and database storage, 0.0.2 checks the server for a saved Like from the same browser and identifier, restoring the filled ♥ after a reload. No database schema change is required. The Like count was added in 0.0.3. Rate limiting will be addressed by 0.1.0.
+- Japanese and English widget text, with selectable Like success messages
+- Restoring the same browser's Like state for each identifier
+- A rolling limit of 1–5 Likes per identifier and anonymous browser in 24 hours (default: 3)
+- Public Like count visibility, color, and refresh interval (5 seconds by default; 0 disables refresh)
+- A configurable automatic aggregation threshold (default: 1,000 events)
+- Daily, monthly, yearly, and time-of-day aggregates
+- CSV archival and aggregate reset when changing the timezone
 
-## Beta 0.0.3 (complete)
+## Requirements
 
-0.0.3 adds an optional Like count. Until the admin screen is available, toggle it with `show_like_count` in `config/config.php`. It defaults to `false` (hidden). When enabled, the saved Like-event count for each identifier appears on page load and after a Like is submitted. The count uses a subtle gray by default; setting its color in the admin screen is planned for 0.1.0.
+- PHP 8.0 or later with PDO MySQL enabled.
+- MySQL or MariaDB. Tables in `install/install.sql` use InnoDB.
+- On Apache, `log/.htaccess` denies direct access to archives. On other web servers, add an equivalent access-denial rule in the server configuration.
+- Keep the widget JavaScript, CSS, and API on the same site (same origin). Cross-origin embedding and CORS are not supported.
 
-### Installation
+## Installation
 
 1. Copy `config/config.example.php` to `config/config.php` and set the database DSN, username, and password.
-2. Generate a random 32-byte secret and set its 64-character hexadecimal form as `app_secret`. With PHP CLI: `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`.
+2. Generate a random 32-byte secret with PHP CLI using `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`. Put the resulting 64-character hexadecimal value in `app_secret`. Use a different secret for each installation.
 3. Run `install/install.sql` against the target database.
-4. Add the following to the HTML, changing `/Simple_Like_Button/` to the deployed path.
+4. Allow the PHP process to write settings JSON files in `config/` and create/write `log/`. Protect `config/config.php` from direct web access.
+5. Add this snippet to the page where the widget should appear. Replace `/Simple_Like_Button/` with the deployed path.
 
 ```html
-<link rel="stylesheet" href="/Simple_Like_Button/assets/like.css">
+<link rel="stylesheet" href="/Simple_Like_Button/assets/like.css?v=1">
 <div data-pollyanna-like data-identifier="article-001"></div>
 <script defer src="/Simple_Like_Button/assets/like.js"></script>
 ```
 
-Set a unique value per page in `data-identifier`. The browser token is stored in LocalStorage; only its HMAC, generated with the installation secret, is stored in the database. Raw IP addresses are not stored.
+Use a stable, unique value per work in `data-identifier`. Values cannot be empty or contain line breaks, and are limited to 50 characters. Prefer an internal ID over a title or URL. Pages for the same work should use the same identifier to share its count and rate limit. When updating the CSS, change `v=1` to refresh browser caches.
 
-## Important: Changing the Timezone
+The browser identifier is stored in LocalStorage; the database stores only its HMAC, generated with the installation secret. Raw IP addresses are not stored. Clearing LocalStorage makes that browser appear as a new anonymous visitor.
 
-Change the timezone when the country or region of operation changes. The system finalizes accumulated Like totals, period aggregates, and time-of-day aggregates, including pending Likes, saves them as CSV files in a timestamped folder under `log/`, resets the active aggregate data, and starts collecting under the new timezone. Public Like counts also restart at zero.
+## Editing language and messages
 
-Before applying a timezone change, the admin screen must show a confirmation dialog explaining that accumulated data will be reset. After the user selects Yes, show progress stages: “Aggregating current data” and “Saving aggregated data.” When saving is complete, identify `log/` as the archive location and gently advise that log files can be deleted if they put pressure on server storage. Archives are not automatically deleted, and the admin screen does not provide download or deletion controls. Administrators handle any optional backup and server-side deletion manually. Historical aggregates are not recalculated using the new timezone.
+Edit widget text in `lang/widget.ja.json` and `lang/widget.en.json`. To change a success message, keep its key (such as `like01`) and edit the value. To add an option, add the same numbered key to both JSON files. JSON does not support comments.
+
+## Local verification page
+
+`tests/local-aggregation-admin.php` is a local-only test page with no login. Do not deploy or expose it in production. In XAMPP, open `http://localhost/Simple_Like_Button/tests/local-aggregation-admin.php`. Opening the page runs one aggregation batch of up to 30 pending records.
+
+During a timezone change, the public APIs enter maintenance mode. Aggregates, including pending Likes, are saved to a timestamped folder under `log/`; active aggregate values reset only after the archive is complete. Archives are not automatically deleted. If a change is interrupted, reload the local page and use **Resume timezone change**.

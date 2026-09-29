@@ -1,1 +1,11 @@
 /config/config.php
+/config/system_state.json
+/config/click_message.json
+/config/widget_settings.json
+/config/rate_limit_settings.json
+/config/public_count_settings.json
+/config/public_count_color_settings.json
+/config/aggregation_threshold_settings.json
+/config/timezone_settings.json
+/config/timezone_change.json
+/log/

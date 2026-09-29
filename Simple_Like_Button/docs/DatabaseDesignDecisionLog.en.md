@@ -6,15 +6,15 @@ This document records decisions and open questions as each design topic is discu
 
 ### Agreed
 
-- Apply rate limits installation-wide, summing Likes across all identifiers for each browser's `client_hash`.
+- Apply rate limits per Like ID (work) and anonymous browser. Check Likes in the rolling last 24 hours; the admin selects 1–5, with a default of 3.
 - Store a random browser token in LocalStorage and store only its HMAC on the server, not the token itself.
 - Do not use `ip_hash` to block Likes; use it to investigate abuse.
 - Delete IP-hash investigation records after at most 60 days. Never store raw IP addresses.
-- Delete `client_hash` records used only for rate-limit checks after the configured limit window expires.
+- Keep rate-limit events separately from aggregation events, only as long as needed for the rolling 24-hour check. Expired events are removed the next time that browser Likes the same Like ID.
 
 ### Design implications
 
-`client_hash` and investigation `ip_hash` have different purposes and retention periods. Manage short-lived rate-limit records separately from the 60-day investigation log. Since IP hashes can affect people sharing a network, do not use them as a Like rejection threshold.
+`client_hash` and investigation `ip_hash` have different purposes and retention periods. Manage short-lived rate-limit records separately from the 60-day investigation log. Since IP hashes can affect people sharing a network, do not use them as a Like rejection threshold. Because the public widget has no login, the limit is per anonymous browser, not per person.
 
 ## 2. Long-term records and aggregation
 
@@ -37,13 +37,17 @@ Store new Likes as individual records first. Roll older records into aggregates,
 
 Let administrators choose the automatic aggregation start threshold from 1,000 (default), 2,000, 4,000, 6,000, 8,000, or 10,000 pending events. Start aggregation automatically when the selected threshold is reached. Do not trigger automatic aggregation based only on elapsed time; when the pending count is below threshold, start aggregation on admin-screen access. Do not add a scheduled task. The selected threshold is not the maximum size of one processing batch or a strict storage cap. When public count display is enabled, add pending individual records to past aggregates. When disabled, the public API must not return the count.
 
-Use each individual record's timestamp to place it in the appropriate reporting period. The implementation must define how many records to process per run, how to resume after failure, and how to avoid counting the same record twice. Do not synchronously process a large backlog during one page view.
+Keep the aggregation batch maximum at 500 events for now, without an admin control. This limit keeps each run lightweight and is separate from the automatic aggregation start threshold. Below-threshold events are also picked up when the admin screen is accessed. Reconsider how to change the limit if operational experience shows a need.
+
+Use short database transactions for aggregation. In each batch, select individual events, update aggregate values, and delete the processed events within the same transaction. If any step fails, roll back the whole batch and retry from the same individual events. Use a lock to prevent aggregation runs from executing concurrently.
+
+Use each event timestamp to select its reporting period. A normal batch processes at most 500 events. Select events, update aggregate values, and delete processed events in one database transaction; roll back on failure. A database-scoped advisory lock prevents concurrent aggregation. Since events are deleted only when their aggregate updates commit in the same transaction, retrying a failed batch does not double count. The verification page is capped at 30 records per request.
 
 Long-term statistics use these two forms:
 
 - **Lifetime total:** total Likes per identifier during the current timezone period. On a timezone change, archive it and reset the active total.
 - **Period aggregates:** Keep daily data until it reaches either five years of age or 50,000 rows, then roll older data into monthly aggregates. Keep monthly aggregates for five years, then roll them into yearly aggregates. Retain yearly aggregates. Make the 50,000-row cap adjustable through program configuration.
-- **Time-of-day aggregates:** Implement collection and admin display in the beta, then decide whether to include the feature in the public release after testing it on Miyabi's site. Aggregate installation-wide Likes by two-hour slot in the active timezone, grouped by month, and retain the latest 24 months. Process events in the existing aggregation batches, not on every Like; store only nonzero slots and delete data outside the rolling 24-month window.
+- **Time-of-day aggregates:** Implement collection and admin display in the beta, then decide whether to include the feature in the public release after testing it on Miyabi's site. Aggregate installation-wide Likes by hour in the active timezone, grouped by month, and retain the latest 24 months. Process events in the existing aggregation batches, not on every Like; store only nonzero slots and delete data outside the rolling 24-month window.
 
 This avoids keeping individual timestamps and hashes for a long time. However, individual events cannot be replayed later to rebuild or correct aggregates. The specification is to roll older daily data into monthly aggregates when it reaches five years of age or 50,000 rows, whichever comes first. The five-year daily window covers roughly three years of detail likely to be useful, with a buffer against timing differences; if the 50,000-row cap is reached first, rollup happens sooner. Keep monthly aggregates for five years, then roll them into yearly aggregates and retain the yearly data. The 50,000-row cap can be changed through program configuration after launch.
 
@@ -51,10 +55,32 @@ Treat a timezone change as a change in the country or region of operation. Do no
 
 Before applying a timezone change, show a confirmation dialog explaining that accumulated data will be reset. After the user selects Yes, show progress with the stages “Aggregating current data” and “Saving aggregated data.” When saving is complete, identify `log/` as the storage location and gently advise that log files can be deleted if they put pressure on server storage. Administrators handle any local backup and server-side deletion manually. Do not automatically delete archives after a fixed period.
 
-Create a timestamped folder in `log/` for each timezone change. Record metadata such as the change time and old/new timezones in `metadata.json`. Store aggregates in two files: `lifetime_totals.csv` for totals per identifier, and `period_aggregates.csv` for daily, monthly, and yearly values with columns for period type, period start, identifier, and Like count. Do not automatically delete archives or provide download/deletion controls in the admin screen; administrators handle optional local backups and server-side deletion manually. The completion dialog advises deleting logs if they put pressure on server storage. Define CSV output handling so commas and line breaks in identifiers are represented correctly and spreadsheet software does not mistakenly evaluate identifiers as formulas.
+Create a timestamped folder in `log/` for each timezone change. Record metadata such as the change time and old/new timezones in `metadata.json`. Store aggregates in `lifetime_totals.csv`, `period_aggregates.csv`, and `hourly_aggregates.csv`. Write CSV with `fputcsv`; prefix identifiers that could be interpreted as formulas with an apostrophe. Do not automatically delete archives or provide download/deletion controls in the admin screen; administrators handle optional local backups and server-side deletion manually.
+
+Put the public APIs into maintenance during the change and aggregate pending events in batches of at most 500. Only delete active aggregate tables and save the new timezone after all archive files are complete. If archiving or the database operation fails, roll back the database transaction and keep the old timezone. Persist enough state to resume an interrupted operation from the local admin page. On Apache, deny direct access to `log/` with `log/.htaccess`.
+
+### Post-implementation verification (2026-09-29)
+
+Created and removed the isolated `pollyanna_integration_tmp` database on XAMPP MariaDB 10.4.32. An intentional SQL error during hourly aggregation left both source events intact and all lifetime, period, and hourly aggregate tables unchanged. After removing the fault, retry processed the two events once; a subsequent run processed zero, confirming no double count. Two concurrent PHP workers were also started: one processed two events and the other processed zero. The final total was two with no pending events.
+
+Using another isolated database and filesystem, verified old daily/monthly rollups, the 50,000-row daily cap, and interrupted timezone-change recovery. An archive-protection failure preserved the old timezone, aggregate data, and maintenance state; after fixing the rule, resuming completed the archive, reset active aggregates, and restored the previous state. Recovery from an interruption after commit was also verified.
+
+Generated archive CSVs from an isolated database with synthetic identifiers such as `=1+1`, `+SUM(1,1)`, `-1+1`, and `@SUM(1,1)`, then opened them in Microsoft Excel. Identifiers in column A of `lifetime_totals.csv` and column C of `period_aggregates.csv` appeared as apostrophe-prefixed text and were not evaluated as formulas. The sample archive is marked test-only in XAMPP `log/csv-safety-test-20260929/`.
 
 ### Decisions to make next
 
-1. What batch size, failure-resumption strategy, and duplicate-count prevention should aggregation use?
-2. Based on beta testing, should time-of-day aggregates be included in the public release?
-3. How should identifiers be emitted in archive CSVs to prevent spreadsheet software from mistakenly evaluating them as formulas?
+1. Based on beta testing, should time-of-day aggregates be included in the public release?
+
+## 3. Liked state after aggregation
+
+### Agreed approach
+
+- Store liked identifiers in browser LocalStorage so the same browser and identifier can restore the ♥ state after individual events are deleted by aggregation.
+- Use existing unaggregated events for server-side state checks; when a saved Like is found, also save the identifier in browser storage.
+- Treat cleared LocalStorage as a new visitor. Do not retain browser-specific history on the server long-term solely to preserve the liked state.
+
+## 4. Time-of-day aggregates on the dashboard (defer details)
+
+One dashboard idea is to show time-of-day aggregates by month or year. Use bars for each hour's share, show the actual count alongside each bar, and display the total for the selected period so the percentages are not read in isolation. Decide the denominator, presentation for small totals, and available periods during dashboard design.
+
+The current retention proposal keeps time-of-day data for the latest 24 months. A yearly view can sum the stored monthly values, but dashboard design should decide whether to retain separate yearly hourly aggregates if users need to view years older than that window.

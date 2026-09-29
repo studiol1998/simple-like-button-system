@@ -1,0 +1,27 @@
+{
+  "language_name": "English",
+  "button_label": "Send a Like",
+  "count_label": "Like count",
+  "identifier_missing": "A Like ID has not been set.",
+  "state_unavailable": "Could not load Like state.",
+  "maintenance": "The Like service is under maintenance.",
+  "send_error": "Could not send your Like. Check your connection and try again.",
+  "rate_limit": "You have reached the Like limit for this item.\nYou can Like it again in about 24 hours.",
+
+"_editing_guide": [
+  "Edit wording: ",
+  "Keep existing keys (such as like01) in success_messages and change only their values.",
+  "Add an option: ",
+  "Use the next numbered key (such as like07).",
+  "Offer it in both languages: ",
+  "Add the same key to widget.ja.json and widget.en.json, with translated text in each."
+],
+  "success_messages": {
+    "like01": "Like!",
+    "like02": "Good!",
+    "like03": "Like",
+    "like04": "Thanks!",
+    "like05": "Thank you!",
+    "like06": "You did it!"
+  }
+}

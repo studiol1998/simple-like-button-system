@@ -46,15 +46,35 @@ if (preg_match('/\A[a-f0-9]{64}\z/i', $clientToken) !== 1) {
 }
 
 try {
+    $widgetText = pollyanna_widget_runtime_text();
+    $pdo = pollyanna_pdo();
+    if (!pollyanna_acquire_like_request_lock($pdo)) {
+        pollyanna_json_response(503, ['success' => false, 'message' => 'Like service is busy. Please try again.']);
+    }
+    if (pollyanna_system_state() === 'maintenance') {
+        pollyanna_json_response(503, [
+            'success' => false,
+            'maintenance' => true,
+            'widget_text' => $widgetText,
+            'message' => 'The Like service is under maintenance.',
+        ]);
+    }
+
     $config = pollyanna_config();
     $clientHash = hash_hmac('sha256', strtolower($clientToken), $config['app_secret']);
-    $service = new LikeService(pollyanna_pdo());
+    $service = new LikeService($pdo);
     $response = [
         'success' => true,
         'liked' => $service->hasLiked($identifier, $clientHash),
+        'widget_text' => $widgetText,
     ];
     if (pollyanna_count_display_enabled()) {
-        $response['count'] = $service->count($identifier);
+        $response['count_refresh_interval'] = pollyanna_count_refresh_interval();
+        try {
+            $response['count'] = $service->count($identifier);
+        } catch (Throwable $countError) {
+            error_log('Pollyanna Like count request failed: ' . $countError->getMessage());
+        }
     }
     pollyanna_json_response(200, $response);
 } catch (Throwable $error) {

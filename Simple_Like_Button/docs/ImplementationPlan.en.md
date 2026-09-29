@@ -4,10 +4,16 @@ This memo connects the existing Pollyanna v1.0 specification and decisions agree
 
 The old beta is reference material for behavior and migration only; its code will not be adopted as-is.
 
+## Current progress (2026-09-29)
+
+The Like API, state restoration, daily/monthly/yearly/hourly aggregation, rate limits, Japanese and English widget, local verification page, settings, and timezone-change archive are implemented. Public count auto-refresh defaults to 5 seconds and supports configurable intervals. When public counts are off, only the initial liked-state check runs; no count query runs. Aggregation rollback/retry and two-process concurrency were verified on 2026-09-29 using an isolated database on XAMPP MariaDB.
+
+Old-data compaction and interrupted timezone-change recovery were verified on 2026-09-29 using an isolated database and filesystem on XAMPP MariaDB. The five-year daily-to-monthly and monthly-to-yearly rollups, additive updates to existing aggregates, and the 50,000-row daily cap (50,001 rows compacted by one row) preserved totals. The timezone test resumed after a 500-event batch, preserved the old timezone, 511 aggregate Likes, and maintenance state after an archive-protection failure, then completed archive/reset/state restoration after the failure was fixed. Recovery after the database commit was also verified. CSV formula protection was tested with synthetic identifiers in Microsoft Excel; the identifiers remained text and were not evaluated. Before adding the widget to production templates, the main remaining work is end-to-end verification under the actual site conditions and access-denial rules for non-Apache servers.
+
 ## Goal
 
 - Deliver a self-hosted Like button that can be embedded easily in a website.
-- Implement data minimization, browser-based installation-wide rate limits, period aggregation, admin controls, and installation flow consistently with agreed decisions.
+- Implement data minimization, per-Like-ID anonymous-browser rate limits, period aggregation, admin controls, and installation flow consistently with agreed decisions.
 - Verify the completed system so Miyabi can add it to the site's HTML templates.
 
 ## Beta version plan
@@ -30,12 +36,13 @@ The old beta is reference material for behavior and migration only; its code wil
 - Do not return the count from the public API while display is disabled.
 - Before aggregation is introduced, 0.0.3 displays the number of saved Like events for each identifier.
 
-### 0.0.4
+### 0.0.4 (implemented)
 
 - Implement daily, monthly, and yearly aggregation.
-- Aggregate installation-wide Likes by two-hour slot and month in the active timezone, with a simple view of the latest 24 months.
+- Aggregate installation-wide Likes by hour and month in the active timezone, with a simple view of the latest 24 months.
+- Also store liked identifiers in browser LocalStorage so the ♥ state survives deletion of aggregated individual events. Clearing LocalStorage makes the browser a new visitor, consistent with the existing browser-identity decision.
 
-### 0.1.0
+### 0.1.0 (local verification page implemented)
 
 - Bundle the admin screen and the functions needed for installation and operation for testing on Miyabi's site.
 - Allow settings such as rate limits, public count visibility, and count display color to be managed in the admin screen.
@@ -48,28 +55,29 @@ For 0.0.1, prioritize making the Like action and database storage work; do not b
 - Record Likes as individual events first, then delete individual rows after aggregation.
 - Let admins select an automatic aggregation start threshold of 1,000 (default), 2,000, 4,000, 6,000, 8,000, or 10,000 pending events. Start automatic aggregation when the selected threshold is reached. Do not auto-aggregate only because time has passed; aggregate below-threshold data when the admin screen is accessed. Do not add a scheduled task.
 - Calculate the current count from stored aggregates plus pending events. Public count display defaults to off and can be toggled in the admin screen.
+- When public counts are enabled, refresh them periodically (5 seconds by default; also 10, 30, 60, or disabled at 0). Do not poll while counts are hidden or while the browser tab is hidden.
 - Keep daily data for up to five years and 50,000 rows; when either limit is reached, roll older data into monthly aggregates. The five-year window leaves a buffer around the roughly three years of detail likely to be useful. The 50,000-row value is adjustable through program configuration.
 - Keep monthly aggregates for five years after they are created, then roll them into yearly aggregates. Retain yearly aggregates.
-- Implement time-of-day aggregation and admin display in the beta, then decide whether to include it in the public release after testing on Miyabi's site. Group installation-wide Likes by month and two-hour slot in the active timezone; retain the latest 24 months. Process events in existing aggregation batches and store only nonzero slots.
-- On a timezone change, aggregate current lifetime and period data, including pending events, save it as CSV in a timestamped folder under `log/`, reset active data, and begin aggregating under the new timezone. Public counts restart at zero.
-- Before changing the timezone, show a confirmation dialog. After Yes, show aggregation and storage progress; when complete, confirm that the data was saved to `log/`.
+- Implement time-of-day aggregation and admin display in the beta, then decide whether to include it in the public release after testing on Miyabi's site. Group installation-wide Likes by month and hour in the active timezone; retain the latest 24 months. Process events in existing aggregation batches and store only nonzero slots.
+- On a timezone change, aggregate current lifetime, period, and hourly data, including pending events, save it as CSV in a timestamped folder under `log/`, reset active aggregates, and begin aggregating under the new timezone. Public counts restart at zero.
+- Before changing the timezone, show a confirmation dialog. After Yes, show aggregation and archive progress, then confirm that data was saved to `log/`. Keep public APIs in maintenance during the change and allow resuming after interruption.
 - Do not automatically delete archives after a fixed period or provide download/deletion controls in the admin screen. The completion dialog gently advises that log files can be deleted if they put pressure on server storage; administrators handle any backup and deletion manually.
-- For each timezone change, create a timestamped folder containing `metadata.json`, `lifetime_totals.csv`, and `period_aggregates.csv`. The totals CSV columns are `identifier,total_likes`; the period CSV columns are `period_type,period_start,identifier,like_count`.
+- For each timezone change, create a timestamped folder containing `metadata.json`, `lifetime_totals.csv`, `period_aggregates.csv`, and `hourly_aggregates.csv`. Write CSV with `fputcsv` and prefix formula-leading identifiers with an apostrophe.
 - Store timestamps in UTC. Never store raw IP addresses. Delete investigation IP hashes within 60 days.
-- Apply rate limits per browser installation-wide. Do not use `ip_hash` to reject Likes.
+- Apply rate limits per Like ID and anonymous browser, with a configurable limit of 1–5 Likes (default 3) in the rolling last 24 hours. Do not use `ip_hash` to reject Likes.
 - Provide enabled and maintenance states only.
 
 ## Expected day-to-day operation
 
 1. When a visitor clicks the button, the API validates the identifier, browser token, and rate limit, then records an individual event with a UTC timestamp and the required hashes.
 2. If public count display is enabled, the API returns the current total plus pending events. If disabled, the public API does not return a count.
-3. Start aggregation when the configured automatic start threshold is reached or when the admin screen is accessed. Process bounded batches and delete individual events only after their aggregate updates are saved successfully.
+3. Start aggregation when the configured automatic start threshold is reached or when the admin screen is accessed. Keep the maximum at 500 events per batch for now, without an admin control. This limit is separate from the automatic start threshold and keeps each batch lightweight. Select individual events, update aggregates, and delete processed events in one short database transaction; roll back and retry the full batch on failure. Prevent concurrent aggregation runs.
 4. Assign events to reporting dates using the active timezone and update lifetime totals and daily aggregates. Roll older daily data into monthly aggregates when it reaches five years of age or the daily row cap, whichever comes first.
 5. Roll monthly aggregates into yearly aggregates after five years as monthly data, and retain yearly aggregates.
-6. Update time-of-day aggregates by month and two-hour slot within existing batches, retaining only the latest 24 months.
-7. Delete rate-limit records after their configured window and investigation IP hashes within 60 days. The design must allow an expired IP hash to be cleared even if its individual Like event remains pending.
+6. Update time-of-day aggregates by month and hour within existing batches, retaining only the latest 24 months.
+7. Keep rate-limit events separate from aggregation events and delete expired rows when the same browser next Likes the same Like ID. Delete investigation IP hashes within 60 days.
 
-If the pending count remains below the configured threshold and the admin screen is not accessed, retain events as unaggregated records. The batch size and recovery after failure are implementation decisions.
+If the pending count remains below the configured threshold and the admin screen is not accessed, retain events as unaggregated records. Normal batches handle up to 500 events; event selection, aggregate updates, and deletion run in one transaction. Roll back on failure and use a database-scoped lock to prevent concurrent aggregation. Rollback/retry, no double counting, and two-process concurrency were verified in an isolated database on 2026-09-29. Public count polling pauses while the tab is hidden.
 
 ### Timezone change flow
 
@@ -100,9 +108,9 @@ Define safe failure behavior, such as keeping the old timezone and active data i
 ### 2. Design for later stages
 
 - Define database tables, indexes, and storage formats.
-- Decide `log/` archive policy.
-- Design chunking, failure recovery, and duplicate-count prevention for aggregation.
-- Define safe recovery behavior if a timezone change fails partway through.
+- Protect `log/` with Apache `.htaccess` and do not automatically delete archives.
+- Aggregation chunking, rollback, and duplicate-count prevention are implemented and were verified against an isolated MariaDB database on 2026-09-29.
+- Timezone-change resume, archive-failure recovery, and post-commit recovery were verified in an isolated environment on 2026-09-29.
 
 ### 3. Data layer and core processing
 
@@ -120,7 +128,7 @@ Define safe failure behavior, such as keeping the old timezone and active data i
 ### 5. Admin screen
 
 - Provide maintenance, rate limit, public count, and statistics controls.
-- Implement the timezone warning and confirmation, aggregation and `log/` storage progress, and completion notice.
+- The local verification page implements the timezone warning and confirmation, aggregation and `log/` storage progress, and completion notice.
 - Do not erase active data before archival storage completes.
 
 ### 6. Installer and operations
@@ -132,8 +140,8 @@ Define safe failure behavior, such as keeping the old timezone and active data i
 ### 7. Integration and template migration readiness
 
 - Verify the API, widget, admin screen, aggregation, and timezone change as an end-to-end flow under the actual deployment conditions.
-- For aggregation verification, lower the production initial threshold of 1,000 to 20 in test configuration. This test setting does not change the production default.
-- Confirm automatic aggregation at 20 pending events, no automatic aggregation below 20 even after one hour, aggregation of below-threshold data when the admin screen is accessed, and no double counting when a batch is retried.
+- Verified the automatic aggregation threshold in an isolated MariaDB: 999 pending events were not aggregated; an HTTP Like request for the 1,000th event aggregated 500. Opening the admin page in Edge ran its automatic 30-event batch; both the page and database showed 470 pending, 530 aggregated, and a total of 1,000. Keep the default threshold at 1,000.
+- Aggregation rollback/retry, concurrent execution, old-data compaction, and timezone-change recovery are verified in an isolated environment.
 - Finalize the embedding instructions for Miyabi's approximately 20 HTML templates.
 - Once verified, add the widget to the templates so content migration can follow.
 
@@ -143,16 +151,17 @@ These are not prerequisites for 0.0.1. Decide them before starting the relevant 
 
 ### Product decisions
 
-1. Define how identifiers are emitted in archive CSVs so spreadsheet software does not mistakenly evaluate them as formulas.
+1. CSV formula protection is implemented and was verified in Microsoft Excel on 2026-09-29; formula-like identifiers remained literal text.
 2. After beta testing, whether to include time-of-day aggregates in the public release.
+3. For a dashboard time-of-day chart, consider bars showing each hour's share of the selected month or year, with the actual hourly count and period total alongside. Decide the denominator, presentation for small totals, and available periods during dashboard design. Since time-of-day data is currently planned for a rolling 24-month window, also decide how to support views of older years if needed.
 
 ### Implementation design
 
-1. Aggregation batch limit, resume position, and protection against counting an event twice.
-2. Safe sequencing of aggregation, archival, and reset during a timezone change.
+1. The 500-event aggregation batch limit is decided; rollback/retry and concurrency protection are implemented and verified in isolation.
+2. Timezone-change recovery is verified in isolation; review the operational procedure on the actual host before production deployment.
 3. A low-load method for detecting that the selected count has been reached.
 4. Storage location and direct-web-access protection for `log/`. The parent specification lists `logs/`, while the current instruction says `log/`; reconcile the directory name during implementation.
 
 ## Commit checkpoint
 
-Before 0.0.1 implementation begins, commit and push the design memo and included changes and create a tag, as Miyabi requested. Confirm the tag name and included scope against the working tree at that checkpoint.
+Before production template integration or release preparation, review the implementation and verification results, then discuss the commit scope and any release tag.
