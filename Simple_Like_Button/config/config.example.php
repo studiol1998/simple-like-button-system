@@ -11,6 +11,10 @@ return [
     'app_secret' => 'replace-with-64-hexadecimal-characters-generated-randomly',
     // Default API state; maintenance mode rejects public Like and state requests.
     'system_state' => 'enabled',
+    // Default language for the admin interface.
+    'admin_language' => 'ja',
+    // Default color theme for the admin interface.
+    'admin_theme' => 'green',
     // Language and success message used by the embedded Like button.
     'widget_language' => 'ja',
     'click_success_message' => 'like02',

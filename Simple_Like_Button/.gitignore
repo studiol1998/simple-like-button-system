@@ -8,4 +8,5 @@
 /config/aggregation_threshold_settings.json
 /config/timezone_settings.json
 /config/timezone_change.json
+/config/admin_settings.json
 /log/

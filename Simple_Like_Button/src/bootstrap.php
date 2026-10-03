@@ -427,6 +427,147 @@ function pollyanna_widget_catalog(): array
     return $catalog;
 }
 
+function pollyanna_admin_catalog(): array
+{
+    $catalog = [];
+    foreach (glob(dirname(__DIR__) . '/lang/admin.*.json') ?: [] as $path) {
+        $code = substr(basename($path, '.json'), strlen('admin.'));
+        if (!preg_match('/^[a-z]{2}(?:-[A-Z]{2})?$/', $code)) {
+            continue;
+        }
+        $contents = file_get_contents($path);
+        if ($contents === false) {
+            continue;
+        }
+        try {
+            $locale = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            continue;
+        }
+        if (is_array($locale) && is_string($locale['language_name'] ?? null)) {
+            $catalog[$code] = $locale;
+        }
+    }
+
+    if (!isset($catalog['ja'])) {
+        throw new RuntimeException('Japanese admin language file is missing or invalid.');
+    }
+    return $catalog;
+}
+
+function pollyanna_admin_language(): string
+{
+    $catalog = pollyanna_admin_catalog();
+    $settingsPath = dirname(__DIR__) . '/config/admin_settings.json';
+    if (is_file($settingsPath)) {
+        $contents = file_get_contents($settingsPath);
+        if ($contents === false) {
+            throw new RuntimeException('Pollyanna admin settings could not be read.');
+        }
+        try {
+            $settings = json_decode($contents, true, 8, JSON_THROW_ON_ERROR);
+        } catch (JsonException $error) {
+            throw new RuntimeException('Pollyanna admin settings are invalid.', 0, $error);
+        }
+        $language = is_array($settings) ? ($settings['language'] ?? null) : null;
+    } else {
+        $language = pollyanna_config()['admin_language'] ?? 'ja';
+    }
+
+    if (!is_string($language) || !isset($catalog[$language])) {
+        throw new RuntimeException('Pollyanna admin language is invalid.');
+    }
+    return $language;
+}
+
+function pollyanna_save_admin_language(string $language): void
+{
+    $catalog = pollyanna_admin_catalog();
+    if (!isset($catalog[$language])) {
+        throw new InvalidArgumentException('Pollyanna admin language is invalid.');
+    }
+
+    $configDirectory = dirname(__DIR__) . '/config';
+    $temporaryPath = tempnam($configDirectory, '.admin-settings-');
+    if ($temporaryPath === false) {
+        throw new RuntimeException('Pollyanna admin language could not be saved.');
+    }
+    try {
+        $json = json_encode(
+            ['language' => $language, 'theme' => pollyanna_admin_theme()],
+            JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ) . PHP_EOL;
+        if (file_put_contents($temporaryPath, $json, LOCK_EX) === false) {
+            throw new RuntimeException('Pollyanna admin language could not be saved.');
+        }
+        if (!rename($temporaryPath, $configDirectory . '/admin_settings.json')) {
+            throw new RuntimeException('Pollyanna admin language could not be saved.');
+        }
+    } finally {
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+}
+
+function pollyanna_admin_themes(): array
+{
+    return ['system', 'light', 'dark', 'green', 'blue', 'orange', 'rose', 'purple', 'monochrome'];
+}
+
+function pollyanna_admin_theme(): string
+{
+    $settingsPath = dirname(__DIR__) . '/config/admin_settings.json';
+    if (is_file($settingsPath)) {
+        $contents = file_get_contents($settingsPath);
+        if ($contents === false) {
+            throw new RuntimeException('Pollyanna admin settings could not be read.');
+        }
+        try {
+            $settings = json_decode($contents, true, 8, JSON_THROW_ON_ERROR);
+        } catch (JsonException $error) {
+            throw new RuntimeException('Pollyanna admin settings are invalid.', 0, $error);
+        }
+        $theme = is_array($settings) ? ($settings['theme'] ?? 'green') : null;
+    } else {
+        $theme = pollyanna_config()['admin_theme'] ?? 'green';
+    }
+
+    if (!is_string($theme) || !in_array($theme, pollyanna_admin_themes(), true)) {
+        throw new RuntimeException('Pollyanna admin theme is invalid.');
+    }
+    return $theme;
+}
+
+function pollyanna_save_admin_theme(string $theme): void
+{
+    if (!in_array($theme, pollyanna_admin_themes(), true)) {
+        throw new InvalidArgumentException('Pollyanna admin theme is invalid.');
+    }
+
+    $configDirectory = dirname(__DIR__) . '/config';
+    $temporaryPath = tempnam($configDirectory, '.admin-settings-');
+    if ($temporaryPath === false) {
+        throw new RuntimeException('Pollyanna admin theme could not be saved.');
+    }
+    try {
+        $json = json_encode(
+            ['language' => pollyanna_admin_language(), 'theme' => $theme],
+            JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ) . PHP_EOL;
+        if (file_put_contents($temporaryPath, $json, LOCK_EX) === false) {
+            throw new RuntimeException('Pollyanna admin theme could not be saved.');
+        }
+        if (!rename($temporaryPath, $configDirectory . '/admin_settings.json')) {
+            throw new RuntimeException('Pollyanna admin theme could not be saved.');
+        }
+    } finally {
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+}
+
 function pollyanna_widget_settings(): array
 {
     $catalog = pollyanna_widget_catalog();

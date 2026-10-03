@@ -2,6 +2,8 @@
 
 This document inventories the information, settings, and actions needed in the admin interface before its final layout and charts are designed. It does not change any agreed product decision.
 
+2026-10-03: The [interface proposal](AdminInterfaceDesign.en.md) uses Dashboard / Details / Settings tabs and separate admin/operation and public-display save groups. `admin/index.php` now provides the shared layout, Japanese/English switching, saved language preference, and a live-DB Dashboard summary with three charts. Access remains restricted to localhost until authentication is implemented. The inventory below describes the existing implementation.
+
 ## 1. Aggregation status
 
 | Item | Content | Status |
@@ -33,7 +35,7 @@ The final admin interface should consider filtering by period and Like ID instea
 
 | Item | Decision | Status |
 | --- | --- | --- |
-| Admin language | Select Japanese or English. Use “いいね ID” in Japanese and “Like ID” in English | Implemented on the local verification page. Loaded from `lang/admin.ja.json` and `lang/admin.en.json`; selection persists for the session. Add `lang/admin.<locale>.json` to add another language. Production admin implementation remains |
+| Admin language | Select Japanese or English. Use “いいね ID” in Japanese and “Like ID” in English | Implemented in the production Dashboard's System information. The selection applies immediately and is saved as the default. Add `lang/admin.<locale>.json` to add another language |
 | Public language and click-success message | Select the site's display language and the message shown after a Like | Japanese/English and the success message are selectable on the local verification page. Text comes from `lang/widget.<locale>.json`; option keys use numbered names such as `like01` and `like02`, independently from the admin interface language |
 | System state | ON or maintenance | Toggle on the localhost-only verification page. Saved in `config/system_state.json`; state and Like APIs return 503 during maintenance |
 | Like limit | Choose 1–5 Likes per Like ID (work) and anonymous browser in a rolling 24-hour window; default is 3 | Selectable and saved on the local verification page; enforced by the API |
