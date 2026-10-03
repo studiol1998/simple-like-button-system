@@ -44,6 +44,17 @@ $clientToken = $body['client_token'];
 if (preg_match('/\A[a-f0-9]{64}\z/i', $clientToken) !== 1) {
     pollyanna_json_response(422, ['success' => false, 'message' => 'Invalid client token.']);
 }
+$canonicalUrl = null;
+if (array_key_exists('canonical_url', $body)) {
+    if (!is_string($body['canonical_url'])) {
+        pollyanna_json_response(422, ['success' => false, 'message' => 'Invalid installation URL.']);
+    }
+    try {
+        $canonicalUrl = pollyanna_normalize_installation_url($body['canonical_url']);
+    } catch (InvalidArgumentException $error) {
+        pollyanna_json_response(422, ['success' => false, 'message' => 'Invalid installation URL.']);
+    }
+}
 
 try {
     $widgetText = pollyanna_widget_runtime_text();
@@ -59,6 +70,7 @@ try {
             'message' => 'The Like service is under maintenance.',
         ]);
     }
+    pollyanna_register_identifier_url($pdo, $identifier, $canonicalUrl);
 
     $config = pollyanna_config();
     $clientHash = hash_hmac('sha256', strtolower($clientToken), $config['app_secret']);

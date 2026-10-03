@@ -40,11 +40,13 @@ Pollyannaは、単独で動作する軽量ないいねボタンシステムで�
 
 ```html
 <link rel="stylesheet" href="/Simple_Like_Button/assets/like.css?v=1">
-<div data-pollyanna-like data-identifier="article-001"></div>
+<div data-pollyanna-like data-identifier="article-001" data-url="https://example.com/articles/001"></div>
 <script defer src="/Simple_Like_Button/assets/like.js"></script>
 ```
 
 `data-identifier` は作品ごとに安定した一意の値にしてください。空欄・改行を含む値は使えず、最大50文字です。タイトルやURLではなく、内部IDなどを推奨します。同じ作品の複数ページで同じIDを指定すると、件数と押下制限は共有されます。CSSを更新したときは、URLの `v=1` を変更してブラウザーキャッシュを更新してください。
+
+`data-url` には、その作品を掲載しているページの正規URLを明示します。管理画面の設置先URLとして保存されます。同じIDへ複数のURLを登録できます。閲覧中のURLが自動送信されることはありません。
 
 ブラウザー識別子はLocalStorageに保存され、サーバーには秘密鍵でHMAC化した値が保存されます。生のIPアドレスは保存しません。LocalStorageを消去すると、ブラウザーは新しい匿名利用者として扱われます。
 

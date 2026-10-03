@@ -84,3 +84,11 @@ Generated archive CSVs from an isolated database with synthetic identifiers such
 One dashboard idea is to show time-of-day aggregates by month or year. Use bars for each hour's share, show the actual count alongside each bar, and display the total for the selected period so the percentages are not read in isolation. Decide the denominator, presentation for small totals, and available periods during dashboard design.
 
 The current retention proposal keeps time-of-day data for the latest 24 months. A yearly view can sum the stored monthly values, but dashboard design should decide whether to retain separate yearly hourly aggregates if users need to view years older than that window.
+
+## 5. Installation URLs and admin authentication (2026-10-03)
+
+- Do not collect the browsing URL automatically. Store only a canonical HTTP/HTTPS URL explicitly supplied by the installer in widget `data-url`.
+- Store URLs in `pollyanna_identifier_urls`, keyed by Like ID and the URL SHA-256. Allow multiple URLs for one ID.
+- Reject URLs containing credentials or fragments. Register or update last-seen time only when `data-url` is present during state restoration or Like submission.
+- Require an admin password of at least 12 characters and store only the `password_hash()` result in `config/admin_credentials.json`.
+- Restrict initial password setup to localhost. Regenerate the session ID after login and use CSRF validation, a five-attempt-per-minute limit, and logout.

@@ -753,6 +753,47 @@ function pollyanna_save_rate_limit(int $limit): void
     }
 }
 
+/**
+ * Applies a group of file-backed settings and restores every file if one write fails.
+ *
+ * @param list<string> $relativePaths Paths below config/ that the callback may change.
+ */
+function pollyanna_save_settings_group(array $relativePaths, callable $save): void
+{
+    $configDirectory = dirname(__DIR__) . '/config';
+    $snapshots = [];
+    foreach ($relativePaths as $relativePath) {
+        if (!is_string($relativePath) || basename($relativePath) !== $relativePath) {
+            throw new InvalidArgumentException('Pollyanna settings path is invalid.');
+        }
+        $path = $configDirectory . '/' . $relativePath;
+        if (is_file($path)) {
+            $contents = file_get_contents($path);
+            if ($contents === false) {
+                throw new RuntimeException('Pollyanna settings could not be backed up.');
+            }
+            $snapshots[$path] = $contents;
+        } else {
+            $snapshots[$path] = null;
+        }
+    }
+
+    try {
+        $save();
+    } catch (Throwable $error) {
+        foreach ($snapshots as $path => $contents) {
+            if ($contents === null) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+                continue;
+            }
+            file_put_contents($path, $contents, LOCK_EX);
+        }
+        throw $error;
+    }
+}
+
 function pollyanna_aggregation_settings(): array
 {
     $config = pollyanna_config();
@@ -816,4 +857,111 @@ function pollyanna_json_response(int $status, array $body): void
     header('Cache-Control: no-store');
     echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
+}
+
+function pollyanna_normalize_installation_url(?string $url): ?string
+{
+    if ($url === null || trim($url) === '') {
+        return null;
+    }
+    $url = trim($url);
+    if (strlen($url) > 2048 || filter_var($url, FILTER_VALIDATE_URL) === false) {
+        throw new InvalidArgumentException('Pollyanna installation URL is invalid.');
+    }
+    $parts = parse_url($url);
+    if (
+        !is_array($parts)
+        || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+        || !is_string($parts['host'] ?? null)
+        || $parts['host'] === ''
+        || isset($parts['user'])
+        || isset($parts['pass'])
+        || isset($parts['fragment'])
+    ) {
+        throw new InvalidArgumentException('Pollyanna installation URL is invalid.');
+    }
+    return $url;
+}
+
+function pollyanna_ensure_identifier_urls_table(PDO $pdo): void
+{
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS pollyanna_identifier_urls ('
+        . 'identifier VARCHAR(50) NOT NULL,'
+        . 'url_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,'
+        . 'canonical_url TEXT NOT NULL,'
+        . 'first_seen_at DATETIME(6) NOT NULL,'
+        . 'last_seen_at DATETIME(6) NOT NULL,'
+        . 'PRIMARY KEY (identifier, url_hash),'
+        . 'KEY idx_polyidentifier_urls_last_seen (last_seen_at)'
+        . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin'
+    );
+}
+
+function pollyanna_register_identifier_url(PDO $pdo, string $identifier, ?string $url): void
+{
+    $url = pollyanna_normalize_installation_url($url);
+    if ($url === null) {
+        return;
+    }
+    pollyanna_ensure_identifier_urls_table($pdo);
+    $statement = $pdo->prepare(
+        'INSERT INTO pollyanna_identifier_urls (identifier, url_hash, canonical_url, first_seen_at, last_seen_at) '
+        . 'VALUES (:identifier, :url_hash, :canonical_url, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)) '
+        . 'ON DUPLICATE KEY UPDATE canonical_url = VALUES(canonical_url), last_seen_at = UTC_TIMESTAMP(6)'
+    );
+    $statement->execute([
+        ':identifier' => $identifier,
+        ':url_hash' => hash('sha256', $url),
+        ':canonical_url' => $url,
+    ]);
+}
+
+function pollyanna_admin_password_hash(): ?string
+{
+    $path = dirname(__DIR__) . '/config/admin_credentials.json';
+    if (!is_file($path)) {
+        return null;
+    }
+    $contents = file_get_contents($path);
+    if ($contents === false) {
+        throw new RuntimeException('Pollyanna admin credentials could not be read.');
+    }
+    try {
+        $credentials = json_decode($contents, true, 4, JSON_THROW_ON_ERROR);
+    } catch (JsonException $error) {
+        throw new RuntimeException('Pollyanna admin credentials are invalid.', 0, $error);
+    }
+    $hash = is_array($credentials) ? ($credentials['password_hash'] ?? null) : null;
+    if (!is_string($hash) || $hash === '') {
+        throw new RuntimeException('Pollyanna admin credentials are invalid.');
+    }
+    return $hash;
+}
+
+function pollyanna_save_admin_password(string $password): void
+{
+    if (strlen($password) < 12 || strlen($password) > 1024) {
+        throw new InvalidArgumentException('Pollyanna admin password length is invalid.');
+    }
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    if (!is_string($hash)) {
+        throw new RuntimeException('Pollyanna admin password could not be hashed.');
+    }
+    $configDirectory = dirname(__DIR__) . '/config';
+    $temporaryPath = tempnam($configDirectory, '.admin-credentials-');
+    if ($temporaryPath === false) {
+        throw new RuntimeException('Pollyanna admin credentials could not be saved.');
+    }
+    try {
+        $json = json_encode(['password_hash' => $hash], JSON_THROW_ON_ERROR) . PHP_EOL;
+        if (file_put_contents($temporaryPath, $json, LOCK_EX) === false) {
+            throw new RuntimeException('Pollyanna admin credentials could not be saved.');
+        }
+        if (!rename($temporaryPath, $configDirectory . '/admin_credentials.json')) {
+            throw new RuntimeException('Pollyanna admin credentials could not be saved.');
+        }
+    } finally {
+        if (is_file($temporaryPath)) unlink($temporaryPath);
+    }
 }

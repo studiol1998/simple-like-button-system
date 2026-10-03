@@ -52,6 +52,7 @@
 
     function initialize(area) {
         const identifier = (area.dataset.identifier || '').trim();
+        const canonicalUrl = (area.dataset.url || '').trim();
         area.classList.add('pollyanna-like-area');
         const button = document.createElement('button');
         const count = document.createElement('span');
@@ -95,6 +96,12 @@
 
         if (getLocallyLikedIdentifiers().includes(identifier)) {
             showLikedState(button);
+        }
+
+        function requestPayload(includeUrl = false) {
+            const payload = {identifier, client_token: getClientToken()};
+            if (includeUrl && canonicalUrl) payload.canonical_url = canonicalUrl;
+            return payload;
         }
 
         function updateCount(result) {
@@ -144,7 +151,7 @@
                 const response = await fetch(stateEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifier, client_token: getClientToken() }),
+                    body: JSON.stringify(requestPayload()),
                 });
                 const result = await response.json();
                 updateWidgetText(result.widget_text);
@@ -173,10 +180,7 @@
                 const response = await fetch(stateEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        identifier,
-                        client_token: getClientToken(),
-                    }),
+                    body: JSON.stringify(requestPayload(true)),
                 });
                 const result = await response.json();
                 updateWidgetText(result.widget_text);
@@ -224,10 +228,7 @@
                 const response = await fetch(likeEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        identifier,
-                        client_token: getClientToken(),
-                    }),
+                    body: JSON.stringify(requestPayload(true)),
                 });
                 const result = await response.json();
                 updateWidgetText(result.widget_text);

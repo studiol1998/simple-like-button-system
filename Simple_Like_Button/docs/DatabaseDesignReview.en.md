@@ -9,7 +9,7 @@ See [ImplementationPlan.en.md](ImplementationPlan.en.md) for implementation stag
 ## Core data policy
 
 - Store Likes as individual events first. After aggregation, delete those event rows and retain lifetime totals and period aggregates.
-- Do not store page titles, URLs, referrers, raw IP addresses, raw browser identifiers, or User-Agent values.
+- Do not automatically collect or store page titles, browsing URLs, referrers, raw IP addresses, raw browser identifiers, or User-Agent values. The only URL stored is a canonical installation URL explicitly supplied by the administrator in widget `data-url`.
 - Treat `identifier` as an opaque string. Use UTF-8 (`utf8mb4`), with a maximum length of 50 characters. Trim leading and trailing whitespace before validation; reject empty values, newlines, and NUL characters.
 - Keep UTC timestamps, `client_hash` for rate limiting, and `ip_hash` for abuse investigation on unaggregated Like events only for the periods required by each purpose.
 - Create `ip_hash` with HMAC-SHA-256 and an installation-specific secret; delete it within 60 days. Store the secret in the config file, not in the database.
@@ -30,6 +30,7 @@ See [ImplementationPlan.en.md](ImplementationPlan.en.md) for implementation stag
 | Unaggregated Like events | Retain pending events and delete after successful aggregation | SQL types, indexes, transactional deletion |
 | Lifetime totals | Keep per-identifier totals during the current timezone period; archive and reset them when the timezone changes | Rebuild and correction behavior |
 | Period aggregates | Keep daily data up to five years/50,000 rows, keep monthly data for five years then roll it into retained yearly data; archive and reset on timezone change | Batches up to 500; aggregate updates and source-event deletion share one transaction |
+| Installation URLs | Store identifier, URL SHA-256, explicitly supplied canonical URL, and first/last seen timestamps; allow multiple URLs per ID | Never infer from the browsing URL; register only when `data-url` is present on state restore or Like submission |
 | Investigation `ip_hash` | Store only HMAC value and delete within 60 days | Behavior when IP is unavailable |
 
 ### `settings` table

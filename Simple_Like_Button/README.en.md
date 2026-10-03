@@ -40,11 +40,13 @@ The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en
 
 ```html
 <link rel="stylesheet" href="/Simple_Like_Button/assets/like.css?v=1">
-<div data-pollyanna-like data-identifier="article-001"></div>
+<div data-pollyanna-like data-identifier="article-001" data-url="https://example.com/articles/001"></div>
 <script defer src="/Simple_Like_Button/assets/like.js"></script>
 ```
 
 Use a stable, unique value per work in `data-identifier`. Values cannot be empty or contain line breaks, and are limited to 50 characters. Prefer an internal ID over a title or URL. Pages for the same work should use the same identifier to share its count and rate limit. When updating the CSS, change `v=1` to refresh browser caches.
+
+Set `data-url` explicitly to the canonical URL of the page containing the work. It is stored as the installation URL shown in the admin interface. One identifier can have multiple URLs. The current browsing URL is never collected automatically.
 
 The browser identifier is stored in LocalStorage; the database stores only its HMAC, generated with the installation secret. Raw IP addresses are not stored. Clearing LocalStorage makes that browser appear as a new anonymous visitor.
 

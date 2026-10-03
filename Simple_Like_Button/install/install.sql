@@ -38,3 +38,13 @@ CREATE TABLE IF NOT EXISTS pollyanna_hourly_aggregates (
     like_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
     PRIMARY KEY (month_start, hour_of_day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS pollyanna_identifier_urls (
+    identifier VARCHAR(50) NOT NULL,
+    url_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    canonical_url TEXT NOT NULL,
+    first_seen_at DATETIME(6) NOT NULL,
+    last_seen_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (identifier, url_hash),
+    KEY idx_polyidentifier_urls_last_seen (last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

@@ -28,7 +28,7 @@ Place the hourly trend chart above search and list controls so the overall trend
 
 Search by Like ID and select dates and daily/monthly/yearly granularity. Show the ID lifetime total, period total, chart, and table. Paginate the complete ID list instead of fixing it to the latest 100.
 
-Keep the ID, period, and granularity controls only as wide as their contents and align them from the left. Add an installation URL as the rightmost list column. The current database does not store URLs; the live implementation will associate each ID with an explicitly supplied canonical URL, will not automatically collect browsing URLs with query strings, and will support multiple locations for a shared ID.
+Keep the ID, period, and granularity controls only as wide as their contents and align them from the left. Add installation URLs as the rightmost list column. Associate each ID with canonical URLs explicitly supplied through `data-url`; never collect the browsing URL automatically, and support multiple locations for a shared ID. `pollyanna_identifier_urls` and the admin display were implemented on 2026-10-03.
 
 Hourly statistics are site-wide, shown separately from ID details: the current storage cannot provide hourly statistics for each ID. Select a month or year and show 24 hourly bars, counts, and percentages. The denominator is the selected period's total hourly count. Label these as aggregated data and show the aggregation time. Empty datasets display an empty state without percentage calculations.
 
@@ -53,8 +53,8 @@ Apply and save the admin language immediately when it is selected on the Dashboa
 
 Timezone changes are a separate operation inside Settings, with an explicit confirmation of aggregate/public-count reset, archive progress, completion location, and interrupted-operation recovery. Connect to the existing service without triggering it from normal save buttons. Any manual aggregation control belongs with aggregation status and must be distinct from refreshing charts.
 
-## Next steps
+## Implementation status and next steps
 
-This deliverable is a design document and static preview. Production authentication, live queries, and durable settings remain to be implemented. Keep the localhost verification page separate from the production admin.
+The production admin interface was connected on 2026-10-03. The static preview remains only as a design reference. The production screen now uses live database data, persistent settings, and authenticated sessions.
 
-Review the layout and save groups, then implement authentication/common layout, consistent filtered statistics/charts, and grouped saves/timezone operations. Decide on pushing after the admin interface is complete. Do not create a tag.
+Live Dashboard, Details, Settings, grouped saves, timezone changes, authentication, and explicit `data-url` registration are complete. The next stage is the web installer, live-server end-to-end verification, and final color adjustments. Decide the next commit and push after the installer work.

@@ -4,9 +4,13 @@ This memo connects the existing Pollyanna v1.0 specification and decisions agree
 
 The old beta is reference material for behavior and migration only; its code will not be adopted as-is.
 
-## Current progress (2026-09-29)
+## Current progress (2026-10-03)
 
-2026-10-03: Added `admin/index.php` as the production admin foundation. It provides shared Dashboard / Details / Settings tabs, Japanese/English switching from `admin.*.json`, and a saved default admin language. The Dashboard reads the live database for total, aggregated, pending, distinct Like IDs, seven-day, twelve-month, and current-month hourly summaries. Details, remaining settings, and authentication are subsequent work. Access is restricted to localhost until authentication is complete.
+2026-10-03: Implemented the production admin interface with Dashboard, Details, Settings, Japanese/English switching, nine color themes, and responsive layouts. Dashboard reads live totals and trends. Details provides monthly hourly data, ID search, period and granularity controls, per-ID trends, totals, pagination, and installation URLs. Settings saves admin/operation and public display groups independently; timezone changes use the existing archive, reset, and recovery workflow.
+
+Admin authentication is implemented. Initial setup is limited to localhost and requires a password of at least 12 characters. Only its hash is stored in `config/admin_credentials.json`. Login uses session ID regeneration, CSRF validation, a five-attempt-per-minute limit, logout, and an optional password visibility control.
+
+An explicitly supplied canonical HTTP/HTTPS URL in widget `data-url` is associated with the Like ID. Browsing URLs, referrers, and page titles are not collected automatically. One ID may have multiple URLs. Existing installations can add the table with `install/upgrade-identifier-urls.sql`.
 
 The Like API, state restoration, daily/monthly/yearly/hourly aggregation, rate limits, Japanese and English widget, local verification page, settings, and timezone-change archive are implemented. Public count auto-refresh defaults to 5 seconds and supports configurable intervals. When public counts are off, only the initial liked-state check runs; no count query runs. Aggregation rollback/retry and two-process concurrency were verified on 2026-09-29 using an isolated database on XAMPP MariaDB.
 
@@ -138,6 +142,7 @@ Define safe failure behavior, such as keeping the old timezone and active data i
 - Prepare installation steps for database configuration, table creation, secret generation, and security checks.
 - Protect write-required locations such as `log/` from direct web access.
 - Prepare Japanese and English installation and configuration documentation.
+- The next work session starts with the web installer described in [InstallerDesign.en.md](InstallerDesign.en.md).
 
 ### 7. Integration and template migration readiness
 
