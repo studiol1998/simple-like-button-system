@@ -22,6 +22,26 @@ $messages = [
         'read_documentation' => 'READMEを確認',
         'view_widget_example' => 'ウィジェット設置例を確認',
         'admin_link' => '管理画面を開く',
+        'welcome_title' => 'Pollyannaへようこそ！',
+        'welcome_intro' => 'インストールを始める前に、データベース（データを保存しておく入れ物）の準備をします。',
+        'welcome_flow' => 'この後の画面では「環境確認 → データベース接続 → 基本設定」の順に進みます。',
+        'preparation_title' => 'インストール前の事前準備',
+        'preparation_location' => 'お使いのレンタルサーバーやホスティングサービスの管理画面（「MySQL」「データベース」などのメニュー）で、次の作業を行ってください。',
+        'preparation_1_title' => 'データベースを1つ作る',
+        'preparation_1_body' => 'Pollyanna専用の、中身が空のデータベースを作成します。他のサイトと共用せず、専用にするのが安全です。',
+        'preparation_2_title' => 'DBユーザーを用意する',
+        'preparation_2_body' => 'データベースを操作するための「ログイン用アカウント」です。新しく作るか、すでにあるものを使います。',
+        'preparation_3_title' => 'ユーザーに権限を付ける',
+        'preparation_3_assignment' => '手順1で作ったデータベースに、手順2のユーザーを割り当ててください。',
+        'preparation_3_permissions' => '「テーブルの作成・読み取り・追加・更新・削除」ができる権限を付けます。',
+        'preparation_3_tip' => '迷ったら、Pollyanna専用データベースに対する「すべての権限」を選べばOKです。',
+        'preparation_4_title' => '次の5つの情報をメモする',
+        'preparation_4_body' => 'インストール中に入力するので、管理画面の表示をそのままメモしてください。',
+        'database_memo_items' => ['DBホスト（例：localhost）', 'ポート番号（例：3306）', 'DB名', 'DBユーザー名', 'DBパスワード'],
+        'preparation_note' => 'データベースは空のままで大丈夫です。テーブルの作成、初期データの登録、設定ファイルの作成は、インストーラーが自動で行います。',
+        'preparation_caution_title' => '名前は管理画面の表示をそのままコピーしてください。',
+        'preparation_caution' => 'サーバーによっては、入力した名前の前に自動で文字が付きます（例：pollyanna と入力しても、実際は abc123_pollyanna）。前に付いた文字も含めて、そのままコピーしてください。',
+        'start_environment' => '環境確認を始める',
         'environment_title' => '環境確認',
         'environment_intro' => 'インストールに必要なサーバー環境と、保存先の状態を確認します。',
         'requirement' => '確認項目',
@@ -53,12 +73,22 @@ $messages = [
         'csrf_error' => '確認トークンが一致しません。ページを再読み込みしてください。',
         'database_title' => 'データベース設定',
         'database_intro' => 'Pollyannaが使用するMySQLまたはMariaDBの接続情報を入力してください。',
+        'database_guide_title' => '入力前の準備',
+        'database_guide_1' => 'レンタルサーバーやホスティングサービスの管理画面を開き、Pollyanna専用の空のデータベースを1つ作成します。',
+        'database_guide_2' => 'そのデータベースを操作するユーザーを作成または選択し、対象DBのテーブル作成・読み書き・更新・削除を許可します。',
+        'database_guide_3' => '管理画面に表示されたDBホスト、DB名、ユーザー名、パスワードを、この画面へ入力します。',
+        'database_guide_note' => '空のデータベースだけ用意してください。テーブル作成、SQLの貼り付け、秘密鍵や設定ファイルの作成はインストーラーが自動で行います。',
+        'database_provider_note' => 'サービスによってはDB名やユーザー名の先頭へ契約アカウント名が自動で付きます。表示された完全な名前を入力してください。DBホストがlocalhost以外に指定されている場合も、サービス側の表示を優先してください。',
         'db_host' => 'DBホスト',
+        'db_host_help' => 'サーバー管理画面に記載されたホスト名です。例：localhost、mysql.example.jp',
         'db_port' => 'ポート',
+        'db_port_help' => '指定がなければ通常は3306です。サーバー会社から別の番号を案内されている場合だけ変更してください。',
         'db_name' => 'DB名',
+        'db_name_help' => '事前に作成した空DBの完全な名前です。既存サイトが使用中のDBは指定しないでください。',
         'db_user' => 'ユーザー名',
+        'db_user_help' => '上記DBへの操作権限を付けたDBユーザー名です。WebサイトやFTPのログイン名とは異なる場合があります。',
         'db_password' => 'パスワード',
-        'db_password_help' => '接続確認後、パスワードは画面に再表示しません。',
+        'db_password_help' => 'DBユーザーに設定したパスワードです。接続確認後は画面に再表示せず、確認画面にも表示しません。',
         'db_connect' => '接続を確認して次へ',
         'db_invalid' => 'DB接続情報の入力形式を確認してください。',
         'db_failed' => 'データベースへ接続できませんでした。ホスト、DB名、ユーザー名、パスワードを確認してください。',
@@ -86,7 +116,7 @@ $messages = [
         'lock_admin' => '完了後、installディレクトリ削除まで管理画面をロック',
         'install_button' => 'インストールを実行',
         'install_failed' => 'インストールを完了できませんでした。入力内容とサーバー設定を確認して、もう一度実行してください。DBパスワードや管理パスワードはログへ出力していません。',
-        'steps' => ['環境確認', 'DB設定', '基本設定', '実行確認', 'インストール', '完了'],
+        'steps' => ['ようこそ', '環境確認', 'DB設定', '基本設定', '実行確認', 'インストール', '完了'],
     ],
     'en' => [
         'language_name' => 'English',
@@ -100,6 +130,26 @@ $messages = [
         'read_documentation' => 'Read the README',
         'view_widget_example' => 'View widget example',
         'admin_link' => 'Open admin',
+        'welcome_title' => 'Welcome to Pollyanna!',
+        'welcome_intro' => 'Before starting the installation, prepare a database—the container where Pollyanna stores its data.',
+        'welcome_flow' => 'The following screens proceed through Environment check → Database connection → Basic settings.',
+        'preparation_title' => 'Before installation',
+        'preparation_location' => 'Open the “MySQL,” “Database,” or similarly named section of your hosting control panel, then complete these steps.',
+        'preparation_1_title' => 'Create one database',
+        'preparation_1_body' => 'Create an empty database dedicated to Pollyanna. Keeping it separate from other websites is safer.',
+        'preparation_2_title' => 'Prepare a database user',
+        'preparation_2_body' => 'This is the login account used to operate the database. Create a new user or use an existing one.',
+        'preparation_3_title' => 'Grant the user permissions',
+        'preparation_3_assignment' => 'Assign the user from step 2 to the database from step 1.',
+        'preparation_3_permissions' => 'Grant permission to create tables and read, insert, update, and delete data.',
+        'preparation_3_tip' => 'If you are unsure, select “all privileges” for the dedicated Pollyanna database.',
+        'preparation_4_title' => 'Write down these five values',
+        'preparation_4_body' => 'You will enter them during installation, so copy them exactly as shown in the control panel.',
+        'database_memo_items' => ['Database host (example: localhost)', 'Port number (example: 3306)', 'Database name', 'Database username', 'Database password'],
+        'preparation_note' => 'The database may remain empty. The installer creates the tables, inserts the initial data, and writes the configuration files automatically.',
+        'preparation_caution_title' => 'Copy names in their complete form',
+        'preparation_caution' => 'Some providers automatically add characters before the name you enter. For example, pollyanna may become abc123_pollyanna. Copy the entire displayed name, including the added characters.',
+        'start_environment' => 'Start environment check',
         'environment_title' => 'Environment check',
         'environment_intro' => 'Check the server requirements and configuration destination before installation.',
         'requirement' => 'Requirement',
@@ -131,12 +181,22 @@ $messages = [
         'csrf_error' => 'The verification token did not match. Reload the page.',
         'database_title' => 'Database settings',
         'database_intro' => 'Enter the MySQL or MariaDB connection used by Pollyanna.',
+        'database_guide_title' => 'Before entering the connection',
+        'database_guide_1' => 'Open your hosting control panel and create one empty database dedicated to Pollyanna.',
+        'database_guide_2' => 'Create or select a database user and grant it permission to create, read, update, and delete tables in that database.',
+        'database_guide_3' => 'Copy the database host, database name, username, and password shown by your hosting provider into this screen.',
+        'database_guide_note' => 'You only need to prepare an empty database. The installer creates the tables, runs the schema, generates the secret, and writes the configuration files.',
+        'database_provider_note' => 'Some providers automatically prefix database names and usernames with your account name. Enter the complete displayed value. If your provider specifies a host other than localhost, use that host.',
         'db_host' => 'Database host',
+        'db_host_help' => 'The hostname shown in your hosting control panel, such as localhost or mysql.example.com.',
         'db_port' => 'Port',
+        'db_port_help' => 'Use 3306 unless your hosting provider gives you a different port.',
         'db_name' => 'Database name',
+        'db_name_help' => 'The complete name of the empty database you created. Do not use a database already used by another site.',
         'db_user' => 'Username',
+        'db_user_help' => 'The database user granted access to the database above. This may differ from your website or FTP login.',
         'db_password' => 'Password',
-        'db_password_help' => 'The password will not be displayed again after the connection check.',
+        'db_password_help' => 'The password assigned to the database user. It is not redisplayed after verification or shown on the review screen.',
         'db_connect' => 'Verify connection and continue',
         'db_invalid' => 'Check the database connection value formats.',
         'db_failed' => 'Could not connect to the database. Check the host, database name, username, and password.',
@@ -164,7 +224,7 @@ $messages = [
         'lock_admin' => 'Lock Admin after completion until the install directory is deleted',
         'install_button' => 'Install Pollyanna',
         'install_failed' => 'Installation could not be completed. Check the submitted values and server configuration, then try again. Database and admin passwords were not written to the log.',
-        'steps' => ['Environment', 'Database', 'Basic settings', 'Confirmation', 'Install', 'Complete'],
+        'steps' => ['Welcome', 'Environment', 'Database', 'Basic settings', 'Confirmation', 'Install', 'Complete'],
     ],
 ];
 
@@ -302,6 +362,10 @@ if ($requestMethod === 'POST') {
     if (!is_string($postedToken) || !hash_equals($csrfToken, $postedToken)) {
         http_response_code(403);
         $error = $ui['csrf_error'];
+    } elseif ($action === 'start_environment' && !$installed) {
+        $_SESSION['installer_step'] = 'environment';
+        header('Location: ?step=environment&language=' . rawurlencode($language));
+        exit;
     } elseif ($action === 'continue' && $environmentReady && !$installed) {
         $_SESSION['installer_step'] = 'database';
         header('Location: ?step=database&language=' . rawurlencode($language));
@@ -396,13 +460,14 @@ if ($requestMethod === 'POST') {
         }
     }
 }
-$availableSteps = ['environment'];
+$availableSteps = ['welcome'];
+if (in_array($_SESSION['installer_step'] ?? '', ['environment', 'database', 'basic', 'confirmation'], true)) $availableSteps[] = 'environment';
 if (in_array($_SESSION['installer_step'] ?? '', ['database', 'basic', 'confirmation'], true)) $availableSteps[] = 'database';
 if (isset($_SESSION['installer_database'])) $availableSteps[] = 'basic';
 if (isset($_SESSION['installer_basic'])) $availableSteps[] = 'confirmation';
-$requestedStep = is_string($_GET['step'] ?? null) ? $_GET['step'] : (string) ($_SESSION['installer_step'] ?? 'environment');
-$step = $installed ? 'installed' : (in_array($requestedStep, $availableSteps, true) ? $requestedStep : 'environment');
-$stepIndexes = ['environment' => 0, 'database' => 1, 'basic' => 2, 'confirmation' => 3];
+$requestedStep = is_string($_GET['step'] ?? null) ? $_GET['step'] : (string) ($_SESSION['installer_step'] ?? 'welcome');
+$step = $installed ? 'installed' : (in_array($requestedStep, $availableSteps, true) ? $requestedStep : 'welcome');
+$stepIndexes = ['welcome' => 0, 'environment' => 1, 'database' => 2, 'basic' => 3, 'confirmation' => 4];
 $currentStepIndex = $stepIndexes[$step] ?? 0;
 ?>
 <!doctype html>
@@ -433,6 +498,22 @@ $currentStepIndex = $stepIndexes[$step] ?? 0;
                 <p><?= installer_h($ui['installed_text']) ?></p>
                 <a class="primary-link" href="../admin/"><?= installer_h($ui['admin_link']) ?></a>
             <?php endif ?>
+        <?php elseif ($step === 'welcome'): ?>
+            <h1><?= installer_h($ui['welcome_title']) ?></h1>
+            <p><?= installer_h($ui['welcome_intro']) ?></p>
+            <p><?= installer_h($ui['welcome_flow']) ?></p>
+            <section class="setup-guide" aria-labelledby="preparation-title">
+                <h2 id="preparation-title"><?= installer_h($ui['preparation_title']) ?></h2>
+                <p><?= installer_h($ui['preparation_location']) ?></p>
+                <ol class="preparation-steps">
+                    <?php for ($preparationIndex = 1; $preparationIndex <= 4; $preparationIndex++): ?>
+                        <li><strong><?= installer_h($ui['preparation_' . $preparationIndex . '_title']) ?></strong><?php if ($preparationIndex === 3): ?><p><?= installer_h($ui['preparation_3_assignment']) ?></p><p><?= installer_h($ui['preparation_3_permissions']) ?></p><p class="step-tip"><?= installer_h($ui['preparation_3_tip']) ?></p><?php else: ?><p><?= installer_h($ui['preparation_' . $preparationIndex . '_body']) ?></p><?php endif ?><?php if ($preparationIndex === 4): ?><ul><?php foreach ($ui['database_memo_items'] as $memoItem): ?><li><?= installer_h($memoItem) ?></li><?php endforeach ?></ul><?php endif ?></li>
+                    <?php endfor ?>
+                </ol>
+                <p class="guide-emphasis"><?= installer_h($ui['preparation_note']) ?></p>
+                <div class="preparation-caution"><strong><span class="warning-emoji" aria-hidden="true">⚠️</span> <?= installer_h($ui['preparation_caution_title']) ?></strong><p><?= installer_h($ui['preparation_caution']) ?></p></div>
+            </section>
+            <form method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="start_environment"><button class="primary" type="submit"><?= installer_h($ui['start_environment']) ?></button></form>
         <?php elseif ($step === 'environment'): ?>
             <h1><?= installer_h($ui['environment_title']) ?></h1>
             <p><?= installer_h($ui['environment_intro']) ?></p>
@@ -442,16 +523,17 @@ $currentStepIndex = $stepIndexes[$step] ?? 0;
                 <?php foreach ($checks as $check): ?><div class="check-row" role="row"><strong role="cell"><?= installer_h($check['label']) ?></strong><span role="cell" class="status <?= $check['ok'] ? 'ok' : 'failed' ?>"><?= installer_h($check['ok'] ? $ui['ok'] : $ui['failed']) ?></span><span role="cell"><?= installer_h($check['detail']) ?></span></div><?php endforeach ?>
             </div>
             <div class="message <?= $environmentReady ? 'success' : 'warning' ?>"><?= installer_h($environmentReady ? $ui['ready'] : $ui['not_ready']) ?></div>
-            <?php if ($environmentReady): ?><form method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="continue"><button class="primary" type="submit"><?= installer_h($ui['continue']) ?></button></form><?php else: ?><a class="secondary-link" href="?language=<?= installer_h($language) ?>"><?= installer_h($ui['reload']) ?></a><?php endif ?>
+            <?php if ($environmentReady): ?><form method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="continue"><div class="form-actions"><a class="secondary-link" href="?step=welcome&amp;language=<?= installer_h($language) ?>"><?= installer_h($ui['back']) ?></a><button class="primary" type="submit"><?= installer_h($ui['continue']) ?></button></div></form><?php else: ?><div class="form-actions"><a class="secondary-link" href="?step=welcome&amp;language=<?= installer_h($language) ?>"><?= installer_h($ui['back']) ?></a><a class="secondary-link" href="?step=environment&amp;language=<?= installer_h($language) ?>"><?= installer_h($ui['reload']) ?></a></div><?php endif ?>
         <?php elseif ($step === 'database'): ?>
             <h1><?= installer_h($ui['database_title']) ?></h1>
             <p><?= installer_h($ui['database_intro']) ?></p>
+            <section class="setup-guide" aria-labelledby="database-guide-title"><h2 id="database-guide-title"><?= installer_h($ui['database_guide_title']) ?></h2><ol><li><?= installer_h($ui['database_guide_1']) ?></li><li><?= installer_h($ui['database_guide_2']) ?></li><li><?= installer_h($ui['database_guide_3']) ?></li></ol><p class="guide-emphasis"><?= installer_h($ui['database_guide_note']) ?></p><p><?= installer_h($ui['database_provider_note']) ?></p></section>
             <?php if ($error !== ''): ?><div class="message error" role="alert"><?= installer_h($error) ?></div><?php endif ?>
             <form class="installer-form" method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="test_database">
-                <div class="form-grid"><label><?= installer_h($ui['db_host']) ?><input name="db_host" type="text" value="<?= installer_h($dbForm['host']) ?>" maxlength="255" required autocomplete="off"></label><label><?= installer_h($ui['db_port']) ?><input name="db_port" type="number" value="<?= installer_h($dbForm['port']) ?>" min="1" max="65535" required></label></div>
-                <label><?= installer_h($ui['db_name']) ?><input name="db_name" type="text" value="<?= installer_h($dbForm['name']) ?>" maxlength="64" required autocomplete="off"></label>
-                <label><?= installer_h($ui['db_user']) ?><input name="db_user" type="text" value="<?= installer_h($dbForm['user']) ?>" maxlength="128" required autocomplete="username"></label>
-                <label><?= installer_h($ui['db_password']) ?><input name="db_password" type="password" maxlength="1024" autocomplete="new-password"></label><p class="form-help"><?= installer_h($ui['db_password_help']) ?></p>
+                <div class="form-grid"><div class="form-field"><label for="db-host"><?= installer_h($ui['db_host']) ?></label><p class="field-description"><?= installer_h($ui['db_host_help']) ?></p><input id="db-host" name="db_host" type="text" value="<?= installer_h($dbForm['host']) ?>" maxlength="255" required autocomplete="off"></div><div class="form-field"><label for="db-port"><?= installer_h($ui['db_port']) ?></label><p class="field-description"><?= installer_h($ui['db_port_help']) ?></p><input id="db-port" name="db_port" type="number" value="<?= installer_h($dbForm['port']) ?>" min="1" max="65535" required></div></div>
+                <div class="form-field"><label for="db-name"><?= installer_h($ui['db_name']) ?></label><p class="field-description"><?= installer_h($ui['db_name_help']) ?></p><input id="db-name" name="db_name" type="text" value="<?= installer_h($dbForm['name']) ?>" maxlength="64" required autocomplete="off"></div>
+                <div class="form-field"><label for="db-user"><?= installer_h($ui['db_user']) ?></label><p class="field-description"><?= installer_h($ui['db_user_help']) ?></p><input id="db-user" name="db_user" type="text" value="<?= installer_h($dbForm['user']) ?>" maxlength="128" required autocomplete="username"></div>
+                <div class="form-field"><label for="db-password"><?= installer_h($ui['db_password']) ?></label><p class="field-description"><?= installer_h($ui['db_password_help']) ?></p><input id="db-password" name="db_password" type="password" maxlength="1024" autocomplete="new-password"></div>
                 <div class="form-actions"><a class="secondary-link" href="?step=environment&amp;language=<?= installer_h($language) ?>"><?= installer_h($ui['back']) ?></a><button class="primary" type="submit"><?= installer_h($ui['db_connect']) ?></button></div>
             </form>
         <?php elseif ($step === 'basic'): ?>
