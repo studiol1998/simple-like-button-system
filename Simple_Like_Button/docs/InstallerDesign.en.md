@@ -18,6 +18,7 @@ After uploading the files, an administrator should be able to start Pollyanna by
 8. Atomically save `config/config.php` and `config/admin_credentials.json`.
 9. Show links to the admin interface and widget example after completion.
 10. Detect completed installations and prevent the installer from running again.
+11. After a successful installation, save a completion marker and deny admin access while the `install/` directory remains. Treat this as the highest-priority completion requirement.
 
 ## Screen flow
 
@@ -26,7 +27,7 @@ After uploading the files, an administrator should be able to start Pollyanna by
 3. **Basic settings**: choose timezone and enter/confirm the admin password, with a visibility toggle.
 4. **Confirmation**: summarize operations without displaying database passwords or secrets.
 5. **Installation**: create tables, then save configuration and authentication data.
-6. **Completion**: link to Admin, README, and the embedding example.
+6. **Completion**: require deletion of the `install/` directory. Keep the Admin link unavailable until deletion, explain that deleting the directory unlocks admin access, and also link to the README and embedding example.
 
 ## Safety design
 
@@ -36,6 +37,8 @@ After uploading the files, an administrator should be able to start Pollyanna by
 - Write configuration through temporary files and atomic replacement.
 - Treat a valid `config/config.php` plus admin credentials as an installed system.
 - Repair and overwrite flows are outside the first installer release.
+- Atomically save `config/install_complete.json` after successful installation. While both the completion marker and `install/` directory exist, stop the admin interface before login processing and show only deletion instructions.
+- Unlock admin access only after the entire `install/` directory has been removed from the server. Removing only `index.php` or using a UI action does not unlock it.
 - Check web access protection for `log/` and `config/`; explain non-Apache requirements on completion.
 - If file saving fails after table creation, keep the tables and allow a safe retry using `CREATE TABLE IF NOT EXISTS`.
 
@@ -66,4 +69,8 @@ After uploading the files, an administrator should be able to start Pollyanna by
 
 - Whether production can place `config/` outside the public document root. The first version keeps the current layout and requires access denial.
 - Whether to include a manual SQL path for hosts whose database account lacks `CREATE TABLE` permission.
-- Whether completion should require deleting `install/`, or rely on installed-state locking. The default design uses configuration and credential existence as the lock.
+- Require deletion of the entire `install/` directory after installation and keep admin access locked until deletion. Use configuration, credentials, and the completion marker to prevent reruns.
+
+## XAMPP verification
+
+On 2026-10-04, the full flow was verified using an isolated `Pollyanna_Installer_Test` copy, a dedicated empty database, and a localhost-only database user. Environment checks, database verification, basic settings, review, table creation, configuration saving, and the completion screen all succeeded. While `install/` remained, Admin showed only the deletion requirement and denied login. Renaming `install/` unlocked Admin; the password created during installation successfully opened the empty-database Dashboard. A dedicated page then verified Like submission, restored heart state, public count display, aggregation on Admin access, and Dashboard charts.

@@ -32,6 +32,30 @@ $ui = $catalog[$language]['admin_ui'] ?? null;
 if (!is_array($ui)) {
     throw new RuntimeException('Pollyanna admin interface translations are missing.');
 }
+$installerCompletionPath = dirname(__DIR__) . '/config/install_complete.json';
+$installerDirectory = dirname(__DIR__) . '/install';
+$installerLockActive = false;
+if (is_file($installerCompletionPath) && is_dir($installerDirectory)) {
+    $completionContents = file_get_contents($installerCompletionPath);
+    if ($completionContents !== false) {
+        try {
+            $completion = json_decode($completionContents, true, 4, JSON_THROW_ON_ERROR);
+            $installerLockActive = is_array($completion) && ($completion['completed'] ?? false) === true;
+        } catch (JsonException) {
+            $installerLockActive = true;
+        }
+    } else {
+        $installerLockActive = true;
+    }
+}
+if ($installerLockActive) {
+    http_response_code(503);
+    $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    ?>
+    <!doctype html><html lang="<?= $escape($language) ?>" data-theme="green"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pollyanna — <?= $escape($ui['installer_removal_required']) ?></title><link rel="stylesheet" href="../assets/admin.css"></head><body class="auth-page"><main class="auth-main"><section class="panel auth-card"><div class="brand-line"><span class="heart" aria-hidden="true">♥</span><span class="brand">Pollyanna</span></div><h1><?= $escape($ui['installer_removal_required']) ?></h1><div class="notice settings-error" role="alert"><?= $escape($ui['installer_removal_required_help']) ?></div><p class="muted"><?= $escape($ui['installer_removal_path']) ?></p></section></main></body></html>
+    <?php
+    exit;
+}
 $languageSaveError = $languageSaveFailed ? (string) $ui['language_save_error'] : '';
 $savedTheme = pollyanna_admin_theme();
 $requestedTheme = $_GET['theme'] ?? $savedTheme;

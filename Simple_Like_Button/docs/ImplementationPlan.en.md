@@ -4,7 +4,9 @@ This memo connects the existing Pollyanna v1.0 specification and decisions agree
 
 The old beta is reference material for behavior and migration only; its code will not be adopted as-is.
 
-## Current progress (2026-10-03)
+## Current progress (2026-10-04)
+
+2026-10-04: Implemented the bilingual web installer with environment checks, database verification, timezone and admin-password setup, review, fixed-schema table creation, and storage of the secret, configuration, credentials, and completion marker. After completion, Admin is blocked before login until the `install/` directory is deleted. An isolated XAMPP copy and dedicated empty database verified installation, the lock, unlock after directory removal, and login with the configured password.
 
 2026-10-03: Implemented the production admin interface with Dashboard, Details, Settings, Japanese/English switching, nine color themes, and responsive layouts. Dashboard reads live totals and trends. Details provides monthly hourly data, ID search, period and granularity controls, per-ID trends, totals, pagination, and installation URLs. Settings saves admin/operation and public display groups independently; timezone changes use the existing archive, reset, and recovery workflow.
 

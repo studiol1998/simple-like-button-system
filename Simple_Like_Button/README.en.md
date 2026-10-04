@@ -22,21 +22,25 @@ The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en
 - A configurable automatic aggregation threshold (default: 1,000 events)
 - Daily, monthly, yearly, and time-of-day aggregates
 - CSV archival and aggregate reset when changing the timezone
+- Password-protected admin interface and browser-based web installer
 
 ## Requirements
 
-- PHP 8.0 or later with PDO MySQL enabled.
+- PHP 8.1 or later with PDO MySQL enabled.
 - MySQL or MariaDB. Tables in `install/install.sql` use InnoDB.
 - On Apache, `log/.htaccess` denies direct access to archives. On other web servers, add an equivalent access-denial rule in the server configuration.
 - Keep the widget JavaScript, CSS, and API on the same site (same origin). Cross-origin embedding and CORS are not supported.
 
 ## Installation
 
-1. Copy `config/config.example.php` to `config/config.php` and set the database DSN, username, and password.
-2. Generate a random 32-byte secret with PHP CLI using `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`. Put the resulting 64-character hexadecimal value in `app_secret`. Use a different secret for each installation.
-3. Run `install/install.sql` against the target database.
-4. Allow the PHP process to write settings JSON files in `config/` and create/write `log/`. Protect `config/config.php` from direct web access.
-5. Add this snippet to the page where the widget should appear. Replace `/Simple_Like_Button/` with the deployed path.
+1. Upload the package and allow the PHP process to write to `config/`. On non-Apache servers, deny web access to `config/` and `log/`.
+2. Open `/your-install-path/install/` in a browser.
+3. Complete the environment check, database connection, timezone, and admin password of at least 12 characters, then run the installation. Database and admin passwords are not redisplayed on the review screen.
+4. When the completion screen appears, delete the entire `install/` directory from the server. Admin remains locked until it is deleted.
+5. Open `/your-install-path/admin/` and sign in with the admin password you set.
+6. Add this snippet to the page where the widget should appear. Replace `/Simple_Like_Button/` with the deployed path.
+
+For a manual installation, create `config/config.php` from `config/config.example.php`, set a unique 64-character hexadecimal `app_secret`, and execute `install/install.sql`. Manual setup must also provide admin credentials and completion state, so the web installer is recommended.
 
 ```html
 <link rel="stylesheet" href="/Simple_Like_Button/assets/like.css?v=1">

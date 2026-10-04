@@ -215,6 +215,9 @@
     "password_mismatch": "確認用パスワードが一致しません。",
     "setup_local_only": "初期設定はlocalhostから行ってください。",
     "authentication_error": "認証設定を読み込めませんでした。",
+    "installer_removal_required": "インストーラーを削除してください",
+    "installer_removal_required_help": "安全のため、インストーラーが残っている間は管理画面を利用できません。サーバーからinstallディレクトリを削除してから、管理画面を再読み込みしてください。",
+    "installer_removal_path": "削除するディレクトリ：install/",
     "database_unavailable": "管理データを読み込めませんでした。"
   }
 }

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Pollyanna インストール後の通し確認</title>
+    <link rel="stylesheet" href="../assets/like.css?v=installer-e2e-1">
+    <script defer src="../assets/like.js?v=installer-e2e-1"></script>
+    <style>
+        body{max-width:760px;margin:40px auto;padding:0 20px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.7;color:#243128}
+        section{margin:28px 0;padding:24px;border:1px solid #d7ded5;border-radius:10px}
+        code{background:#f1f3ef;padding:2px 5px;border-radius:4px}
+    </style>
+</head>
+<body>
+<main>
+    <h1>インストール後の通し確認</h1>
+    <p>新規インストールしたPollyannaのAPI、状態復元、集計、管理画面表示を確認するためのページです。</p>
+    <section aria-labelledby="target-title">
+        <h2 id="target-title">テスト対象：installer-e2e-001</h2>
+        <div data-pollyanna-like data-identifier="installer-e2e-001" data-url="http://localhost/Pollyanna_Installer_Test/tests/installer-end-to-end.html"></div>
+    </section>
+    <ol>
+        <li>♡を押し、成功文言が表示されて♥へ変わることを確認します。</li>
+        <li>ページを再読み込みし、同じブラウザーで♥が復元されることを確認します。</li>
+        <li>管理画面を開き、総いいね数といいねID数が増えることを確認します。</li>
+        <li>個別詳細で <code>installer-e2e-001</code> と、このページの設置先URLを確認します。</li>
+        <li>設定でサイト上の件数表示をオンにすると、このページに件数が表示されることを確認します。</li>
+    </ol>
+</main>
+</body>
+</html>

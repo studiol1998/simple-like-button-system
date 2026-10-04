@@ -215,6 +215,9 @@
     "password_mismatch": "The confirmation password does not match.",
     "setup_local_only": "Initial setup must be completed from localhost.",
     "authentication_error": "Could not load the authentication settings.",
+    "installer_removal_required": "Delete the installer",
+    "installer_removal_required_help": "For security, the admin interface is unavailable while the installer remains on the server. Delete the install directory, then reload the admin interface.",
+    "installer_removal_path": "Directory to delete: install/",
     "database_unavailable": "Could not load admin data."
   }
 }

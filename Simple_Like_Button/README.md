@@ -22,21 +22,25 @@ Pollyannaは、単独で動作する軽量ないいねボタンシステムで�
 - 自動集計開始しきい値（初期値1,000件）の設定
 - 日別・月別・年別および時間帯別集計
 - タイムゾーン変更時のCSVアーカイブと集計値のリセット
+- パスワード保護された管理画面と、ブラウザーから実行できるWebインストーラー
 
 ## 必要な環境
 
-- PHP 8.0以降。PDO MySQLドライバーを有効にしてください。
+- PHP 8.1以降。PDO MySQLドライバーを有効にしてください。
 - MySQLまたはMariaDB。`install/install.sql` のテーブルはInnoDBを使用します。
 - Apacheで運用する場合、`log/.htaccess` によるアーカイブへの直接アクセス拒否が使えます。Apache以外ではWebサーバー側にも同等の拒否設定を追加してください。
 - ウィジェットのJavaScript、CSS、APIは同一サイト（同一オリジン）に配置してください。別オリジンへの埋め込みやCORSには対応していません。
 
 ## 設置
 
-1. `config/config.example.php` を `config/config.php` にコピーし、DB接続先・ユーザー名・パスワードを設定します。
-2. PHP CLIで `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"` を実行し、生成された64文字の16進数を `app_secret` に設定します。秘密鍵は設置ごとに変えてください。
-3. `install/install.sql` を対象データベースで実行します。
-4. PHP実行ユーザーが `config/` に設定JSONを書き込み、`log/` を作成・書き込みできるようにします。`config/config.php` はWebから直接取得できない場所またはWebサーバー設定で保護してください。
-5. ウィジェットを表示するHTMLへ次を追加します。`/Simple_Like_Button/` は設置パスに置き換えてください。
+1. サーバーへファイル一式を配置し、PHP実行ユーザーが `config/` へ書き込めるようにします。Apache以外では `config/` と `log/` へのWebアクセスを拒否してください。
+2. ブラウザーで `/設置パス/install/` を開きます。
+3. 環境確認、DB接続、タイムゾーン、12文字以上の管理パスワードを順に設定し、インストールを実行します。DBパスワードや管理パスワードは確認画面へ再表示しません。
+4. 完了画面が表示されたら、サーバーから `install/` ディレクトリ全体を削除します。削除するまで管理画面には入れません。
+5. `/設置パス/admin/` を開き、設定した管理パスワードでログインします。
+6. ウィジェットを表示するHTMLへ次を追加します。`/Simple_Like_Button/` は設置パスに置き換えてください。
+
+Webインストーラーを使わない場合は、`config/config.example.php` を基に `config/config.php` を作成し、設置ごとに異なる64文字の16進数を `app_secret` へ設定して、`install/install.sql` を対象DBで実行します。管理認証情報と完了状態も用意する必要があるため、通常はWebインストーラーを使用してください。
 
 ```html
 <link rel="stylesheet" href="/Simple_Like_Button/assets/like.css?v=1">
