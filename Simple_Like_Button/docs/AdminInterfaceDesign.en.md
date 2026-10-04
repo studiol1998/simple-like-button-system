@@ -20,7 +20,7 @@ Show total Likes (aggregated plus pending), the aggregated/pending breakdown, di
 
 Updated 2026-10-03: Show three charts side by side: seven daily bars, twelve monthly bars including the current month, and 24 hourly bars for the current calendar month. Split each chart subtitle into two fixed 15px lines: coverage period and data description. Stack the charts into one column on narrow screens. Use a 3px gap between bars. Show actual coverage and label the current month as incomplete. Hourly data includes aggregates only, with counts and percentages in a companion table. A rolling 30-day hourly view cannot be reconstructed from the existing monthly hourly aggregates; settle that period definition/storage before live implementation. Colors will be adjusted later.
 
-Use the existing aggregation batch on admin entry (up to 500 records), then refresh the summary. Combine daily aggregates and pending events in the configured timezone using a consistent snapshot to prevent double counting. A failed request must not be represented as zero.
+Run one existing aggregation batch when the admin screen opens (up to 500 records), then refresh the summary. If records remain or automatic aggregation fails, provide an “Aggregate now” action on the Dashboard that retries one batch at a time. Retain pending records on failure and show retry guidance. Combine daily aggregates and pending events in the configured timezone using a consistent snapshot to prevent double counting. A failed request must not be represented as zero.
 
 ## Details
 
@@ -51,7 +51,7 @@ Disable refresh/color controls while counts are hidden, retaining their values. 
 
 Apply and save the admin language immediately when it is selected on the Dashboard. Grouped saves must prevent partial application across the existing configuration files; do not simply call each individual JSON writer in sequence.
 
-Timezone changes are a separate operation inside Settings, with an explicit confirmation of aggregate/public-count reset, archive progress, completion location, and interrupted-operation recovery. Connect to the existing service without triggering it from normal save buttons. Any manual aggregation control belongs with aggregation status and must be distinct from refreshing charts.
+Timezone changes are a separate operation inside Settings, with an explicit confirmation of aggregate/public-count reset, archive progress, completion location, and interrupted-operation recovery. Connect to the existing service without triggering it from normal save buttons. Place “Aggregate now” with aggregation status on the Dashboard. Each run processes one batch of up to 500 records and reports both the processed and remaining counts. Keep it distinct from refreshing charts.
 
 ## Implementation status and next steps
 

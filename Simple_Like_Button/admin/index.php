@@ -137,6 +137,15 @@ $settingsResult = isset($_SESSION['pollyanna_settings_result']) && is_string($_S
     : '';
 unset($_SESSION['pollyanna_settings_result']);
 $settingsError = '';
+$aggregationResult = isset($_SESSION['pollyanna_aggregation_result']) && is_string($_SESSION['pollyanna_aggregation_result'])
+    ? $_SESSION['pollyanna_aggregation_result']
+    : '';
+$aggregationError = isset($_SESSION['pollyanna_aggregation_error']) && is_string($_SESSION['pollyanna_aggregation_error'])
+    ? $_SESSION['pollyanna_aggregation_error']
+    : '';
+unset($_SESSION['pollyanna_aggregation_result'], $_SESSION['pollyanna_aggregation_error']);
+$skipAccessAggregation = ($_SESSION['pollyanna_skip_access_aggregation'] ?? false) === true;
+unset($_SESSION['pollyanna_skip_access_aggregation']);
 
 $widgetCatalog = pollyanna_widget_catalog();
 $widgetSettings = pollyanna_widget_settings();
@@ -179,6 +188,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'message' => (string) $catalog[$language]['timezone_change_error'],
             ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         }
+        exit;
+    } elseif ($action === 'manual_aggregate') {
+        try {
+            $aggregationSettings = pollyanna_aggregation_settings();
+            $pdo = pollyanna_pdo();
+            $processed = (new AggregationService($pdo))->aggregateBatch(
+                $aggregationSettings['aggregation_batch_size'],
+                $aggregationSettings['timezone']
+            );
+            $remaining = (new LikeService($pdo))->pendingCount();
+            $_SESSION['pollyanna_aggregation_result'] = $processed > 0
+                ? sprintf($ui['manual_aggregation_processed'], $processed, $remaining)
+                : ($remaining > 0 ? $ui['manual_aggregation_busy'] : $ui['manual_aggregation_empty']);
+        } catch (Throwable $error) {
+            error_log('Pollyanna manual aggregation failed: ' . $error->getMessage());
+            $_SESSION['pollyanna_aggregation_error'] = (string) $ui['manual_aggregation_error'];
+        }
+        $_SESSION['pollyanna_skip_access_aggregation'] = true;
+        header('Location: ?tab=dashboard');
         exit;
     } elseif ($action === 'save_admin_operation') {
         $requestedState = $_POST['system_state'] ?? '';
@@ -309,7 +337,7 @@ $requestedDetailMonth = $_GET['month'] ?? '';
 $selectedDetailMonth = is_string($requestedDetailMonth) && preg_match('/\A\d{4}-(?:0[1-9]|1[0-2])\z/', $requestedDetailMonth) === 1
     ? $requestedDetailMonth
     : '';
-$settings = ['timezone' => 'Asia/Tokyo'];
+$settings = ['timezone' => 'Asia/Tokyo', 'aggregation_batch_size' => 500];
 $today = new DateTimeImmutable('today', new DateTimeZone($settings['timezone']));
 $dailyStart = $today->modify('-6 days');
 $monthStart = $today->modify('first day of this month')->modify('-11 months');
@@ -317,6 +345,23 @@ try {
     $pdo = pollyanna_pdo();
     pollyanna_ensure_identifier_urls_table($pdo);
     $settings = pollyanna_aggregation_settings();
+    if (!$skipAccessAggregation && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && pollyanna_timezone_change_state() === null) {
+        try {
+            $processedOnAccess = (new AggregationService($pdo))->aggregateBatch(
+                $settings['aggregation_batch_size'],
+                $settings['timezone']
+            );
+            $remainingAfterAccess = (new LikeService($pdo))->pendingCount();
+            if ($processedOnAccess > 0) {
+                $aggregationResult = sprintf($ui['automatic_aggregation_processed'], $processedOnAccess, $remainingAfterAccess);
+            } elseif ($remainingAfterAccess > 0) {
+                $aggregationError = (string) $ui['automatic_aggregation_busy'];
+            }
+        } catch (Throwable $error) {
+            error_log('Pollyanna automatic aggregation on admin access failed: ' . $error->getMessage());
+            $aggregationError = (string) $ui['automatic_aggregation_error'];
+        }
+    }
     $timezone = new DateTimeZone($settings['timezone']);
     $utc = new DateTimeZone('UTC');
     $today = new DateTimeImmutable('today', $timezone);
@@ -541,6 +586,9 @@ $timezoneChangeState = pollyanna_timezone_change_state();
         <div class="heading dashboard-heading"><div><h1><?= admin_h($ui['dashboard']) ?></h1><p class="muted"><?= admin_h($ui['dashboard_intro']) ?></p></div><aside class="system-info"><h2><?= admin_h($ui['system_information']) ?></h2><dl class="facts"><div><dt><?= admin_h($ui['version']) ?></dt><dd><?= admin_h($ui['development_version']) ?></dd></div><div><dt><?= admin_h($ui['system_status']) ?></dt><dd><?= admin_h($systemState === 'maintenance' ? $ui['maintenance'] : 'ON') ?></dd></div><div><dt><?= admin_h($ui['aggregation_timezone']) ?></dt><dd><?= admin_h($settings['timezone']) ?></dd></div><div><dt><?= admin_h($ui['retrieved_at']) ?></dt><dd><?= admin_h($retrievedAt) ?></dd></div><div><dt><?= admin_h($ui['admin_language']) ?></dt><dd><form class="language-form" method="get"><input type="hidden" name="tab" value="dashboard"><select data-language-select name="language" aria-label="<?= admin_h($ui['admin_language']) ?>"><?php foreach ($catalog as $code => $locale): ?><option value="<?= admin_h($code) ?>" <?= $language === $code ? 'selected' : '' ?>><?= admin_h($locale['language_name']) ?></option><?php endforeach ?></select></form></dd></div></dl><?php if ($languageSaveError !== ''): ?><p class="result" role="status"><?= admin_h($languageSaveError) ?></p><?php endif ?></aside></div>
         <?php if ($dashboardError !== ''): ?><div class="notice"><?= admin_h($dashboardError) ?></div><?php endif ?>
         <div class="cards"><div class="card"><div class="label"><?= admin_h($ui['total_likes']) ?></div><div class="number"><?= number_format($total) ?></div><div class="muted"><?= admin_h($ui['aggregated_and_pending']) ?></div></div><div class="card"><div class="label"><?= admin_h($ui['aggregated']) ?></div><div class="number"><?= number_format($aggregated) ?></div><div class="muted"><?= admin_h($ui['lifetime_total']) ?></div></div><div class="card"><div class="label"><?= admin_h($ui['pending']) ?></div><div class="number"><?= number_format($pending) ?></div><div class="muted"><?= admin_h($ui['awaiting_aggregation']) ?></div></div><div class="card"><div class="label"><?= admin_h($ui['like_ids']) ?></div><div class="number"><?= number_format($likeIds) ?></div><div class="muted"><?= admin_h($ui['including_aggregated_pending']) ?></div></div></div>
+        <section class="aggregation-actions" aria-labelledby="aggregation-actions-title"><div><h2 id="aggregation-actions-title"><?= admin_h($ui['aggregation_actions']) ?></h2><p class="muted"><?= admin_h(sprintf($ui['aggregation_access_help'], number_format((int) $settings['aggregation_batch_size']))) ?></p></div><form method="post"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="manual_aggregate"><button class="primary" type="submit"><?= admin_h($ui['manual_aggregation']) ?></button></form></section>
+        <?php if ($aggregationResult !== ''): ?><div class="notice aggregation-notice" role="status"><?= admin_h($aggregationResult) ?></div><?php endif ?>
+        <?php if ($aggregationError !== ''): ?><div class="notice settings-error" role="alert"><?= admin_h($aggregationError) ?></div><?php endif ?>
         <div class="trend-grid">
             <?php foreach ([[$ui['last_7_days'], $dailyPeriod, $ui['includes_aggregated_pending'], $dailyValues, $dailyLabels, '', 1], [$ui['last_12_months'], $monthlyPeriod, $ui['includes_aggregated_pending'], $monthlyValues, $monthlyLabels, 'monthly', 2], [$ui['current_month_hourly'], $hourlyPeriod, $ui['aggregated_data_only'], $hourlyValues, $hourlyLabels, 'hourly', 6]] as [$title, $period, $description, $values, $labels, $class, $labelEvery]): ?><section class="panel trend-panel"><h2><?= admin_h($title) ?></h2><div class="chart-meta"><div class="chart-period"><?= admin_h($period) ?></div><div class="chart-description"><?= admin_h($description) ?></div></div><?php $chart = admin_chart($values, $labels, $class, $labelEvery); echo $chart !== '' ? $chart : '<div class="empty">' . admin_h($ui['no_chart_data']) . '</div>'; ?></section><?php endforeach ?>
         </div>
@@ -557,11 +605,11 @@ $timezoneChangeState = pollyanna_timezone_change_state();
         <div class="setting-grid">
             <section class="panel settings-card">
                 <h2><?= admin_h($ui['admin_operation_settings']) ?></h2>
-                <form class="theme-form" method="get"><input type="hidden" name="tab" value="settings"><div class="field"><label for="admin-theme"><?= admin_h($ui['admin_theme']) ?><select id="admin-theme" data-theme-select name="theme"><?php foreach (pollyanna_admin_themes() as $themeCode): ?><option value="<?= admin_h($themeCode) ?>" <?= $theme === $themeCode ? 'selected' : '' ?>><?= admin_h($ui['themes'][$themeCode]) ?></option><?php endforeach ?></select></label><p class="field-help"><?= admin_h($language === 'ja' ? '色別テーマは白基調です。システムは端末のライト／ダーク設定に追従します。' : 'Color themes use a white base. System follows the device light/dark preference.') ?></p></div></form>
+                <form class="theme-form" method="get"><input type="hidden" name="tab" value="settings"><div class="field"><label for="admin-theme"><?= admin_h($ui['admin_theme']) ?></label><p class="field-help"><?= admin_h($language === 'ja' ? '色別テーマは白基調です。システムは端末のライト／ダーク設定に追従します。' : 'Color themes use a white base. System follows the device light/dark preference.') ?></p><select id="admin-theme" data-theme-select name="theme"><?php foreach (pollyanna_admin_themes() as $themeCode): ?><option value="<?= admin_h($themeCode) ?>" <?= $theme === $themeCode ? 'selected' : '' ?>><?= admin_h($ui['themes'][$themeCode]) ?></option><?php endforeach ?></select></div></form>
                 <?php if ($themeSaveError !== ''): ?><p class="result" role="status"><?= admin_h($themeSaveError) ?></p><?php endif ?>
                 <form method="post" data-settings-form="admin-operation" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="save_admin_operation">
-                    <div class="field"><label for="system-state"><?= admin_h($catalog[$language]['system_state']) ?><select id="system-state" name="system_state"><?php foreach ($catalog[$language]['system_states'] as $stateCode => $stateLabel): ?><option value="<?= admin_h($stateCode) ?>" <?= $formSystemState === $stateCode ? 'selected' : '' ?>><?= admin_h($stateLabel) ?></option><?php endforeach ?></select></label><p class="field-help"><?= admin_h($ui['maintenance_help']) ?></p></div>
-                    <div class="field"><label for="aggregation-threshold"><?= admin_h($catalog[$language]['threshold']) ?><select id="aggregation-threshold" name="aggregation_start_threshold"><?php foreach ([1000, 2000, 4000, 6000, 8000, 10000] as $threshold): ?><option value="<?= $threshold ?>" <?= $formAggregationThreshold === $threshold ? 'selected' : '' ?>><?= number_format($threshold) ?></option><?php endforeach ?></select></label><p class="field-help"><?= admin_h($ui['threshold_help']) ?></p></div>
+                    <div class="field"><label for="system-state"><?= admin_h($catalog[$language]['system_state']) ?></label><p class="field-help"><?= admin_h($ui['maintenance_help']) ?></p><select id="system-state" name="system_state"><?php foreach ($catalog[$language]['system_states'] as $stateCode => $stateLabel): ?><option value="<?= admin_h($stateCode) ?>" <?= $formSystemState === $stateCode ? 'selected' : '' ?>><?= admin_h($stateLabel) ?></option><?php endforeach ?></select></div>
+                    <div class="field"><label for="aggregation-threshold"><?= admin_h($catalog[$language]['threshold']) ?></label><p class="field-help"><?= admin_h($ui['threshold_help']) ?></p><select id="aggregation-threshold" name="aggregation_start_threshold"><?php foreach ([1000, 2000, 4000, 6000, 8000, 10000] as $threshold): ?><option value="<?= $threshold ?>" <?= $formAggregationThreshold === $threshold ? 'selected' : '' ?>><?= number_format($threshold) ?></option><?php endforeach ?></select></div>
                     <div class="save-row"><button class="primary" type="submit"><?= admin_h($ui['save_admin_operation']) ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
                 </form>
             </section>
@@ -570,10 +618,10 @@ $timezoneChangeState = pollyanna_timezone_change_state();
                 <form method="post" data-settings-form="public-display" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="save_public_display">
                     <div class="field"><label for="widget-language"><?= admin_h($catalog[$language]['widget_language']) ?><select id="widget-language" name="widget_language" data-widget-language><?php foreach ($widgetCatalog as $code => $locale): ?><option value="<?= admin_h($code) ?>" <?= $formWidgetLanguage === $code ? 'selected' : '' ?>><?= admin_h($locale['language_name']) ?></option><?php endforeach ?></select></label></div>
                     <div class="field"><label for="success-message"><?= admin_h($catalog[$language]['click_message']) ?><select id="success-message" name="success_message" data-success-message><?php foreach ($widgetCatalog[$formWidgetLanguage]['success_messages'] as $messageKey => $message): ?><option value="<?= admin_h($messageKey) ?>" <?= $formSuccessMessage === $messageKey ? 'selected' : '' ?>><?= admin_h($message) ?></option><?php endforeach ?></select></label></div>
-                    <div class="field"><label for="rate-limit"><?= admin_h($catalog[$language]['rate_limit']) ?><select id="rate-limit" name="likes_per_24_hours"><?php foreach ([1, 2, 3, 4, 5] as $limit): ?><option value="<?= $limit ?>" <?= $formRateLimit === $limit ? 'selected' : '' ?>><?= $limit ?></option><?php endforeach ?></select></label><p class="field-help"><?= admin_h($ui['limit_help']) ?></p></div>
-                    <div class="field"><label for="show-count"><?= admin_h($catalog[$language]['public_count']) ?><select id="show-count" name="show_like_count" data-count-visibility><option value="off" <?= !$formShowCount ? 'selected' : '' ?>><?= admin_h($catalog[$language]['off']) ?></option><option value="on" <?= $formShowCount ? 'selected' : '' ?>><?= admin_h($catalog[$language]['on']) ?></option></select></label><p class="field-help"><?= admin_h($ui['count_visibility_help']) ?></p></div>
+                    <div class="field"><label for="rate-limit"><?= admin_h($catalog[$language]['rate_limit']) ?></label><p class="field-help"><?= admin_h($ui['limit_help']) ?></p><select id="rate-limit" name="likes_per_24_hours"><?php foreach ([1, 2, 3, 4, 5] as $limit): ?><option value="<?= $limit ?>" <?= $formRateLimit === $limit ? 'selected' : '' ?>><?= $limit ?></option><?php endforeach ?></select></div>
+                    <div class="field"><label for="show-count"><?= admin_h($catalog[$language]['public_count']) ?></label><p class="field-help field-help-lines"><span><?= admin_h($ui['count_visibility_on_help']) ?></span><span><?= admin_h($ui['count_visibility_off_help']) ?></span></p><select id="show-count" name="show_like_count" data-count-visibility><option value="off" <?= !$formShowCount ? 'selected' : '' ?>><?= admin_h($catalog[$language]['off']) ?></option><option value="on" <?= $formShowCount ? 'selected' : '' ?>><?= admin_h($catalog[$language]['on']) ?></option></select></div>
                     <div class="field"><label for="refresh-interval"><?= admin_h($catalog[$language]['count_refresh_interval']) ?><select id="refresh-interval" name="count_refresh_interval" data-count-dependent <?= !$formShowCount ? 'disabled' : '' ?>><?php foreach ($catalog[$language]['refresh_intervals'] as $seconds => $label): ?><option value="<?= admin_h((string) $seconds) ?>" <?= $formRefreshInterval === (int) $seconds ? 'selected' : '' ?>><?= admin_h($label) ?></option><?php endforeach ?></select></label></div>
-                    <div class="field"><label for="count-color"><?= admin_h($ui['count_color']) ?><input id="count-color" name="like_count_color" type="color" value="<?= admin_h($formCountColor) ?>" data-count-dependent <?= !$formShowCount ? 'disabled' : '' ?>></label></div>
+                    <div class="field count-color-field"><label for="count-color"><?= admin_h($ui['count_color']) ?></label><p id="count-color-help" class="field-help"><?= admin_h($ui['count_color_help']) ?></p><div class="count-color-control"><input id="count-color" name="like_count_color" type="color" value="<?= admin_h($formCountColor) ?>" data-count-dependent <?= !$formShowCount ? 'disabled' : '' ?>><label class="visually-hidden" for="count-color-hex"><?= admin_h($ui['count_color_hex']) ?></label><input id="count-color-hex" class="count-color-hex" type="text" value="<?= admin_h(strtoupper($formCountColor)) ?>" pattern="#[0-9A-Fa-f]{6}" maxlength="7" inputmode="text" autocomplete="off" spellcheck="false" aria-describedby="count-color-help" data-count-color-value data-invalid-text="<?= admin_h($ui['count_color_hex_error']) ?>" data-count-dependent <?= !$formShowCount ? 'disabled' : '' ?>></div></div>
                     <div class="save-row"><button class="primary" type="submit"><?= admin_h($ui['save_public_display']) ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
                 </form>
             </section>

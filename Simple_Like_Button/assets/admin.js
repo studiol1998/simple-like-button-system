@@ -94,6 +94,29 @@ if (countVisibility) {
     updateCountDependents();
 }
 
+const countColor = document.getElementById('count-color');
+const countColorValue = document.querySelector('[data-count-color-value]');
+if (countColor && countColorValue) {
+    const validHexColor = /^#[0-9a-f]{6}$/i;
+    const updateHexInput = () => {
+        countColorValue.value = countColor.value.toUpperCase();
+    };
+    countColor.addEventListener('input', updateHexInput);
+    countColorValue.addEventListener('input', () => {
+        const valid = validHexColor.test(countColorValue.value);
+        countColorValue.setCustomValidity(valid ? '' : countColorValue.dataset.invalidText || '');
+        if (valid) {
+            countColor.value = countColorValue.value.toLowerCase();
+        }
+    });
+    countColorValue.addEventListener('change', () => {
+        if (validHexColor.test(countColorValue.value)) {
+            countColorValue.value = countColorValue.value.toUpperCase();
+        }
+    });
+    updateHexInput();
+}
+
 document.querySelectorAll('[data-settings-form]').forEach((form) => {
     const status = form.querySelector('[data-save-status]');
     const markUnsaved = () => {
