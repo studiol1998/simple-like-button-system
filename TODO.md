@@ -2,24 +2,27 @@
 
 ## Phase 1
 
--   [ ] Database design
--   [ ] install.sql
--   [ ] API specification
+-   [x] Database design
+-   [x] install.sql
+-   [x] API specification
 
 ## Phase 2
 
--   [ ] Database layer
--   [ ] LikeService
--   [ ] JavaScript
+-   [x] Database layer
+-   [x] LikeService
+-   [x] JavaScript
 
 ## Phase 3
 
--   [ ] Admin dashboard
--   [ ] Statistics
--   [ ] Settings
+-   [x] Admin dashboard
+-   [x] Statistics
+-   [x] Settings
 
 ## Phase 4
 
--   [ ] Security hardening
--   [ ] Testing
+-   [x] Web installer and post-install Admin lock
+-   [x] Isolated XAMPP end-to-end installation test
+-   [ ] Verify deployment on the production hosting environment
+-   [ ] Add access-denial configuration when deploying on a non-Apache server
+-   [ ] Integrate the widget into the production HTML templates
 -   [ ] Release v1.0

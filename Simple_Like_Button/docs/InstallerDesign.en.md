@@ -1,6 +1,6 @@
 # Web Installer Design
 
-Created 2026-10-03. This is the starting point for the next work session.
+Created 2026-10-03. Last updated 2026-10-05.
 
 ## Goal
 
@@ -22,12 +22,24 @@ After uploading the files, an administrator should be able to start Pollyanna by
 
 ## Screen flow
 
-1. **Environment check**: list requirements and actionable failures.
-2. **Database setup**: enter credentials and verify connection only; never redisplay the password.
-3. **Basic settings**: choose timezone and enter/confirm the admin password, with a visibility toggle.
-4. **Confirmation**: summarize operations without displaying database passwords or secrets.
-5. **Installation**: create tables, then save configuration and authentication data.
-6. **Completion**: require deletion of the `install/` directory. Keep the Admin link unavailable until deletion, explain that deleting the directory unlocks admin access, and also link to the README and embedding example.
+The installer doubles as an installation guide. Its first screen explains database terminology and where to perform each task in a hosting control panel.
+
+1. **Welcome**: explain the database as the container for stored data and describe preparation under a hosting panel's “MySQL,” “Database,” or similarly named menu.
+2. **Environment check**: list requirements and actionable failures.
+3. **Database setup**: explain each connection field, verify the connection only, and never redisplay the password.
+4. **Basic settings**: choose timezone and enter/confirm the admin password, with a visibility toggle.
+5. **Confirmation**: summarize operations without displaying database passwords or secrets.
+6. **Installation**: create tables, then save configuration and authentication data.
+7. **Completion**: require deletion of the `install/` directory. Keep Admin unavailable until deletion, explain that deleting the directory unlocks it, and link to the README and embedding example.
+
+## Preparation performed by the user
+
+1. Create one empty database dedicated to Pollyanna.
+2. Create a database user or select an existing one.
+3. Assign that user to the dedicated database and grant table creation, read, insert, update, and delete permissions. If individual selection is unclear, granting all privileges on the dedicated Pollyanna database is acceptable.
+4. Copy the database host, port, database name, database username, and database password from the hosting control panel.
+
+The installer does not create the database or its user. Some hosts automatically prefix database and user names, so values must be copied exactly as displayed. The installer creates tables and initial data, generates the secret, and writes configuration files in the empty database.
 
 ## Safety design
 
@@ -55,20 +67,19 @@ After uploading the files, an administrator should be able to start Pollyanna by
 | Public count | Hidden |
 | Refresh interval | 5 seconds when counts are visible |
 
-## Next implementation order
+## Implemented components
 
-1. Create `install/index.php` and installer translations.
-2. Implement environment checks and installed-state detection.
-3. Implement database verification and fixed schema execution.
-4. Save configuration, secret, and admin password.
-5. Implement completion and rerun prevention.
-6. Verify the complete flow against a fresh XAMPP database.
-7. Update README and the implementation plan with the actual procedure and results.
+1. `install/index.php` and Japanese/English translations.
+2. Beginner-oriented preparation instructions, environment checks, and installed-state detection.
+3. Database verification and fixed schema execution.
+4. Configuration, secret, and admin-password storage.
+5. Completion, rerun prevention, and Admin locking until `install/` is deleted.
+6. End-to-end verification against a dedicated empty XAMPP database.
 
-## Questions for the next session
+## Checks before production deployment
 
 - Whether production can place `config/` outside the public document root. The first version keeps the current layout and requires access denial.
-- Whether to include a manual SQL path for hosts whose database account lacks `CREATE TABLE` permission.
+- The database user needs `CREATE`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE`. If a hosting panel does not make individual selection clear, instruct users to grant all privileges only on the dedicated Pollyanna database.
 - Require deletion of the entire `install/` directory after installation and keep admin access locked until deletion. Use configuration, credentials, and the completion marker to prevent reruns.
 
 ## XAMPP verification

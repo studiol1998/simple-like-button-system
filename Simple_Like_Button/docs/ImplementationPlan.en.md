@@ -4,7 +4,9 @@ This memo connects the existing Pollyanna v1.0 specification and decisions agree
 
 The old beta is reference material for behavior and migration only; its code will not be adopted as-is.
 
-## Current progress (2026-10-04)
+## Current progress (2026-10-05)
+
+2026-10-05: Added a beginner-oriented Welcome and preparation screen before the web installer's environment check. It explains the dedicated empty database, database user, database-scoped permissions, and five connection values to copy. Where a provider automatically adds characters to database or user names, users are told to copy the control-panel display exactly. The flow now has seven stages: Welcome, Environment, Database, Basic settings, Confirmation, Install, and Complete.
 
 2026-10-04: Implemented the bilingual web installer with environment checks, database verification, timezone and admin-password setup, review, fixed-schema table creation, and storage of the secret, configuration, credentials, and completion marker. After completion, Admin is blocked before login until the `install/` directory is deleted. An isolated XAMPP copy and dedicated empty database verified installation, the lock, unlock after directory removal, and login with the configured password.
 
@@ -141,10 +143,10 @@ Define safe failure behavior, such as keeping the old timezone and active data i
 
 ### 6. Installer and operations
 
-- Prepare installation steps for database configuration, table creation, secret generation, and security checks.
-- Protect write-required locations such as `log/` from direct web access.
-- Prepare Japanese and English installation and configuration documentation.
-- The next work session starts with the web installer described in [InstallerDesign.en.md](InstallerDesign.en.md).
+- The web installer now covers database preparation, connection settings, table creation, secret generation, admin-password setup, and completion.
+- Apache access-denial files protect `config/` and `log/`, and the installer checks `config/.htaccess`. Other web servers need equivalent configuration.
+- Japanese and English installer screens and installation documentation are complete.
+- After installation, Admin remains locked until the entire `install/` directory is deleted. Configuration, credentials, and the completion marker prevent reruns.
 
 ### 7. Integration and template migration readiness
 

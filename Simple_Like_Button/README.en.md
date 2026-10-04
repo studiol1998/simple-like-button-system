@@ -33,12 +33,17 @@ The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en
 
 ## Installation
 
-1. Upload the package and allow the PHP process to write to `config/`. On non-Apache servers, deny web access to `config/` and `log/`.
-2. Open `/your-install-path/install/` in a browser.
-3. Complete the environment check, database connection, timezone, and admin password of at least 12 characters, then run the installation. Database and admin passwords are not redisplayed on the review screen.
-4. When the completion screen appears, delete the entire `install/` directory from the server. Admin remains locked until it is deleted.
-5. Open `/your-install-path/admin/` and sign in with the admin password you set.
-6. Add this snippet to the page where the widget should appear. Replace `/Simple_Like_Button/` with the deployed path.
+1. In the hosting control panel, create one empty database dedicated to Pollyanna.
+2. Create or select a database user and assign it to that database. Grant `CREATE`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE`. If individual selection is unclear, grant all privileges only on the dedicated Pollyanna database.
+3. Copy the database host, port, database name, database username, and database password exactly as displayed. Providers may automatically add characters before database and user names.
+4. Upload the package and allow the PHP process to write to `config/`. On non-Apache servers, deny web access to `config/` and `log/`.
+5. Open `/your-install-path/install/` in a browser and proceed through Welcome, Environment check, Database setup, Basic settings, and Confirmation.
+6. Set the aggregation timezone and an admin password of at least 12 characters, then run the installation. Database and admin passwords are not redisplayed on the review screen.
+7. When the completion screen appears, delete the entire `install/` directory from the server. Admin remains locked until it is deleted.
+8. Open `/your-install-path/admin/` and sign in with the admin password you set.
+9. Add this snippet to the page where the widget should appear. Replace `/Simple_Like_Button/` with the deployed path.
+
+The installer creates tables, initial data, the secret, configuration, and admin credentials inside the prepared empty database. It does not create the database or database user.
 
 For a manual installation, create `config/config.php` from `config/config.example.php`, set a unique 64-character hexadecimal `app_secret`, and execute `install/install.sql`. Manual setup must also provide admin credentials and completion state, so the web installer is recommended.
 

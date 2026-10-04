@@ -6,10 +6,12 @@ Lightweight, standalone Like-button engine.
 
 ## Current Status
 
--   Version: v0.1 Draft
--   Specification-first development
+-   Latest checkpoint: `v0.4.1-installer-guide`
+-   Core widget, aggregation, administration, and secure web installer implemented
+-   XAMPP end-to-end installation and post-install Like flow verified
 
-See: - `Pollyanna_Specification_v0.1_Draft.txt` - `DesignPrinciples.md`
+See `Simple_Like_Button/README.md` for installation and usage, and
+`Pollyanna_Specification_v1.0/` for the current specification.
 
 ## Previous prototype
 
