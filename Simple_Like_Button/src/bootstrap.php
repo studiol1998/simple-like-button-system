@@ -61,6 +61,46 @@ function pollyanna_pdo(): PDO
     return $pdo;
 }
 
+function pollyanna_ensure_allowed_origins_table(PDO $pdo): void
+{
+    $pdo->exec('CREATE TABLE IF NOT EXISTS pollyanna_allowed_origins ('
+        . 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,'
+        . 'scheme VARCHAR(5) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,'
+        . 'host VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,'
+        . 'port SMALLINT UNSIGNED NOT NULL,'
+        . 'include_subdomains TINYINT(1) NOT NULL DEFAULT 0,'
+        . 'created_at DATETIME(6) NOT NULL,'
+        . 'PRIMARY KEY (id), UNIQUE KEY uq_polyallowed_origin (scheme, host, port)'
+        . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin');
+}
+
+function pollyanna_allowed_origins(): array
+{
+    $pdo = pollyanna_pdo();
+    pollyanna_ensure_allowed_origins_table($pdo);
+    return $pdo->query('SELECT id, scheme, host, port, include_subdomains, created_at FROM pollyanna_allowed_origins ORDER BY scheme, host, port')->fetchAll();
+}
+
+function pollyanna_save_config_values(array $values): void
+{
+    $path = dirname(__DIR__) . '/config/config.php';
+    $config = pollyanna_config();
+    foreach ($values as $key => $value) $config[$key] = $value;
+    $contents = "<?php\ndeclare(strict_types=1);\n\nreturn " . var_export($config, true) . ";\n";
+    $temporary = $path . '.tmp-' . bin2hex(random_bytes(8));
+    if (file_put_contents($temporary, $contents, LOCK_EX) === false) {
+        @unlink($temporary);
+        throw new RuntimeException('Could not save configuration.');
+    }
+    $backup = $path . '.bak-' . bin2hex(random_bytes(8));
+    if ((is_file($path) && !rename($path, $backup)) || !rename($temporary, $path)) {
+        if (is_file($backup)) @rename($backup, $path);
+        @unlink($temporary);
+        throw new RuntimeException('Could not save configuration.');
+    }
+    @unlink($backup);
+}
+
 function pollyanna_count_display_enabled(): bool
 {
     $settingsPath = dirname(__DIR__) . '/config/public_count_settings.json';
@@ -204,6 +244,81 @@ function pollyanna_save_count_display_color(string $color): void
         if (is_file($temporaryPath)) {
             unlink($temporaryPath);
         }
+    }
+}
+
+function pollyanna_button_symbol_presets(): array
+{
+    return [
+        'heart' => ['unliked' => '♡', 'liked' => '♥'],
+        'diamond' => ['unliked' => '♢', 'liked' => '♦'],
+        'spade' => ['unliked' => '♤', 'liked' => '♠'],
+        'club' => ['unliked' => '♧', 'liked' => '♣'],
+        'star' => ['unliked' => '☆', 'liked' => '★'],
+        'music' => ['unliked' => '♭', 'liked' => '♪'],
+    ];
+}
+
+function pollyanna_button_display_settings(): array
+{
+    $defaults = ['preset' => 'heart', 'unliked_color' => '#666666', 'liked_color' => '#e53955'];
+    $settingsPath = dirname(__DIR__) . '/config/button_display_settings.json';
+    $settings = null;
+    if (is_file($settingsPath)) {
+        $contents = file_get_contents($settingsPath);
+        if ($contents !== false) {
+            try {
+                $decoded = json_decode($contents, true, 8, JSON_THROW_ON_ERROR);
+                if (is_array($decoded)) $settings = $decoded;
+            } catch (JsonException) {
+                $settings = null;
+            }
+        }
+    } else {
+        $config = pollyanna_config();
+        $settings = [
+            'preset' => $config['button_symbol_preset'] ?? $defaults['preset'],
+            'unliked_color' => $config['button_unliked_color'] ?? $defaults['unliked_color'],
+            'liked_color' => $config['button_liked_color'] ?? $defaults['liked_color'],
+        ];
+    }
+
+    $preset = is_array($settings) && is_string($settings['preset'] ?? null) ? $settings['preset'] : $defaults['preset'];
+    $unlikedColor = is_array($settings) && is_string($settings['unliked_color'] ?? null) ? strtolower($settings['unliked_color']) : $defaults['unliked_color'];
+    $likedColor = is_array($settings) && is_string($settings['liked_color'] ?? null) ? strtolower($settings['liked_color']) : $defaults['liked_color'];
+    if (!array_key_exists($preset, pollyanna_button_symbol_presets())) $preset = $defaults['preset'];
+    if (!in_array($unlikedColor, ['#666666', '#cccccc'], true)) $unlikedColor = $defaults['unliked_color'];
+    if (preg_match('/\A#[0-9a-f]{6}\z/', $likedColor) !== 1) $likedColor = $defaults['liked_color'];
+    return ['preset' => $preset, 'unliked_color' => $unlikedColor, 'liked_color' => $likedColor];
+}
+
+function pollyanna_save_button_display_settings(string $preset, string $unlikedColor, string $likedColor): void
+{
+    $unlikedColor = strtolower($unlikedColor);
+    $likedColor = strtolower($likedColor);
+    if (
+        !array_key_exists($preset, pollyanna_button_symbol_presets())
+        || !in_array($unlikedColor, ['#666666', '#cccccc'], true)
+        || preg_match('/\A#[0-9a-f]{6}\z/', $likedColor) !== 1
+    ) {
+        throw new InvalidArgumentException('Pollyanna button display settings are invalid.');
+    }
+    $configDirectory = dirname(__DIR__) . '/config';
+    $temporaryPath = tempnam($configDirectory, '.button-display-');
+    if ($temporaryPath === false) throw new RuntimeException('Pollyanna button display settings could not be saved.');
+    try {
+        $json = json_encode(
+            ['preset' => $preset, 'unliked_color' => $unlikedColor, 'liked_color' => $likedColor],
+            JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ) . PHP_EOL;
+        if (file_put_contents($temporaryPath, $json, LOCK_EX) === false) {
+            throw new RuntimeException('Pollyanna button display settings could not be saved.');
+        }
+        if (!rename($temporaryPath, $configDirectory . '/button_display_settings.json')) {
+            throw new RuntimeException('Pollyanna button display settings could not be saved.');
+        }
+    } finally {
+        if (is_file($temporaryPath)) unlink($temporaryPath);
     }
 }
 
@@ -409,7 +524,7 @@ function pollyanna_widget_catalog(): array
             && is_string($locale['language_name'])
             && is_array($locale['success_messages'])
             && $locale['success_messages'] !== [];
-        foreach (['button_label', 'count_label', 'identifier_missing', 'state_unavailable', 'maintenance', 'send_error', 'rate_limit'] as $field) {
+        foreach (['button_label', 'count_label', 'identifier_missing', 'identifier_invalid', 'identifier_generation_failed', 'state_unavailable', 'maintenance', 'send_error', 'rate_limit'] as $field) {
             $validLocale = $validLocale && isset($locale[$field]) && is_string($locale[$field]);
         }
         foreach ($locale['success_messages'] ?? [] as $key => $message) {
@@ -661,15 +776,23 @@ function pollyanna_widget_runtime_text(): array
     $settings = pollyanna_widget_settings();
     $locale = $catalog[$settings['language']];
 
+    $buttonDisplay = pollyanna_button_display_settings();
+    $symbols = pollyanna_button_symbol_presets()[$buttonDisplay['preset']];
     return [
         'button_label' => $locale['button_label'],
         'count_label' => $locale['count_label'],
         'identifier_missing' => $locale['identifier_missing'],
+        'identifier_invalid' => $locale['identifier_invalid'],
+        'identifier_generation_failed' => $locale['identifier_generation_failed'],
         'state_unavailable' => $locale['state_unavailable'],
         'maintenance' => $locale['maintenance'],
         'send_error' => $locale['send_error'],
         'rate_limit' => $locale['rate_limit'],
         'count_color' => pollyanna_count_display_color(),
+        'symbol_unliked' => $symbols['unliked'],
+        'symbol_liked' => $symbols['liked'],
+        'symbol_unliked_color' => $buttonDisplay['unliked_color'],
+        'symbol_liked_color' => $buttonDisplay['liked_color'],
     ];
 }
 
@@ -859,16 +982,38 @@ function pollyanna_json_response(int $status, array $body): void
     exit;
 }
 
+function pollyanna_identifier_is_valid(string $identifier): bool
+{
+    $characterCount = preg_match_all('/./us', $identifier);
+    if ($identifier === '' || $characterCount === false || $characterCount > 100) {
+        return false;
+    }
+
+    // Unicode letters, marks, numbers, punctuation and symbols are accepted.
+    // ASCII punctuation and symbols are rejected except for "-" and "_".
+    return preg_match('/\A[\p{L}\p{M}\p{N}\p{P}\p{S}]+\z/uD', $identifier) === 1
+        && preg_match('/[\x21-\x2C\x2E-\x2F\x3A-\x40\x5B-\x5E\x60\x7B-\x7E]/', $identifier) !== 1;
+}
+
 function pollyanna_normalize_installation_url(?string $url): ?string
 {
     if ($url === null || trim($url) === '') {
         return null;
     }
     $url = trim($url);
-    if (strlen($url) > 2048 || filter_var($url, FILTER_VALIDATE_URL) === false) {
+    if (strlen($url) > 2048) {
         throw new InvalidArgumentException('Pollyanna installation URL is invalid.');
     }
-    $parts = parse_url($url);
+
+    $url = substr($url, 0, strcspn($url, '?#'));
+    if ($url === '' || preg_match('/[\x00-\x20\x7F]/u', $url) === 1) {
+        throw new InvalidArgumentException('Pollyanna installation URL is invalid.');
+    }
+    try {
+        $parts = parse_url($url);
+    } catch (ValueError $error) {
+        throw new InvalidArgumentException('Pollyanna installation URL is invalid.', 0, $error);
+    }
     if (
         !is_array($parts)
         || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
@@ -876,7 +1021,6 @@ function pollyanna_normalize_installation_url(?string $url): ?string
         || $parts['host'] === ''
         || isset($parts['user'])
         || isset($parts['pass'])
-        || isset($parts['fragment'])
     ) {
         throw new InvalidArgumentException('Pollyanna installation URL is invalid.');
     }
@@ -887,7 +1031,7 @@ function pollyanna_ensure_identifier_urls_table(PDO $pdo): void
 {
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS pollyanna_identifier_urls ('
-        . 'identifier VARCHAR(50) NOT NULL,'
+        . 'identifier VARCHAR(100) NOT NULL,'
         . 'url_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,'
         . 'canonical_url TEXT NOT NULL,'
         . 'first_seen_at DATETIME(6) NOT NULL,'

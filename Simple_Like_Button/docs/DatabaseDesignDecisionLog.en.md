@@ -90,5 +90,12 @@ The current retention proposal keeps time-of-day data for the latest 24 months. 
 - Do not collect the browsing URL automatically. Store only a canonical HTTP/HTTPS URL explicitly supplied by the installer in widget `data-url`.
 - Store URLs in `pollyanna_identifier_urls`, keyed by Like ID and the URL SHA-256. Allow multiple URLs for one ID.
 - Reject URLs containing credentials or fragments. Register or update last-seen time only when `data-url` is present during state restoration or Like submission.
+
+## 6. v1.0 Phase 1 update (2026-10-07)
+
+- `identifier` identifies an aggregation target rather than an individual button, and multiple widgets may share it.
+- Expand the maximum to 100 Unicode code points and provide a migration for the five existing tables.
+- Generate an identifier from the current path and DOM position only when `data-identifier` is absent; an empty attribute is an error.
+- Select installation URLs from `data-url`, canonical, `og:url`, and the current URL; remove query and fragment and register only after a successful Like. This section supersedes the older registration conditions above.
 - Require an admin password of at least 12 characters and store only the `password_hash()` result in `config/admin_credentials.json`.
 - Restrict initial password setup to localhost. Regenerate the session ID after login and use CSRF validation, a five-attempt-per-minute limit, and logout.

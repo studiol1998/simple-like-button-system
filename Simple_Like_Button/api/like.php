@@ -1,9 +1,11 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/src/bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 require_once dirname(__DIR__) . '/src/LikeService.php';
 require_once dirname(__DIR__) . '/src/AggregationService.php';
+
+$originPolicy = pollyanna_public_api_origin_guard();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     header('Allow: POST');
@@ -30,14 +32,8 @@ if (!is_array($body) || !is_string($body['identifier'] ?? null) || !is_string($b
     pollyanna_json_response(400, ['success' => false, 'message' => 'Identifier and client token are required.']);
 }
 
-$identifier = trim($body['identifier']);
-$characterCount = preg_match_all('/./us', $identifier);
-if (
-    $identifier === ''
-    || $characterCount === false
-    || $characterCount > 50
-    || preg_match('/[\r\n\x00]/', $identifier) === 1
-) {
+$identifier = $body['identifier'];
+if (!pollyanna_identifier_is_valid($identifier)) {
     pollyanna_json_response(422, ['success' => false, 'message' => 'Invalid identifier.']);
 }
 
@@ -71,8 +67,6 @@ try {
             'message' => 'The Like service is under maintenance.',
         ]);
     }
-    pollyanna_register_identifier_url($pdo, $identifier, $canonicalUrl);
-
     $config = pollyanna_config();
     $successMessage = pollyanna_widget_success_message();
     $clientHash = hash_hmac('sha256', strtolower($clientToken), $config['app_secret']);
@@ -84,6 +78,15 @@ try {
             'widget_text' => $widgetText,
             'message' => $widgetText['rate_limit'],
         ]);
+    }
+    try {
+        if ($canonicalUrl !== null && $originPolicy->allowsUrl($canonicalUrl)) {
+            pollyanna_register_identifier_url($pdo, $identifier, $canonicalUrl);
+        } elseif ($canonicalUrl !== null) {
+            error_log('Pollyanna installation URL registration skipped: URL origin is not allowed.');
+        }
+    } catch (Throwable $urlRegistrationError) {
+        error_log('Pollyanna installation URL registration failed: ' . $urlRegistrationError->getMessage());
     }
     try {
         $aggregationSettings = pollyanna_aggregation_settings();

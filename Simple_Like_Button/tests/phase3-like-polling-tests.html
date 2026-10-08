@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ja" data-pollyanna-test>
+<head>
+<meta charset="utf-8">
+<title>Pollyanna Phase 3 polling tests</title>
+<script>
+window.phase3Calls = [];
+window.phase3Timers = new Map();
+window.phase3TimerSequence = 0;
+window.phase3VisibilityListeners = 0;
+window.phase3Hidden = false;
+window.phase3Modes = new Map();
+window.phase3Deferred = new Map();
+window.addEventListener('error', event => {
+    document.documentElement.dataset.testStatus = 'failed';
+    document.getElementById('result').textContent = `ERROR: ${event.message}\n${event.error?.stack || ''}`;
+});
+window.addEventListener('unhandledrejection', event => {
+    document.documentElement.dataset.testStatus = 'failed';
+    document.getElementById('result').textContent = `REJECTION: ${event.reason?.message || event.reason}\n${event.reason?.stack || ''}`;
+});
+
+Object.defineProperty(document, 'hidden', {configurable: true, get: () => window.phase3Hidden});
+const originalAddEventListener = document.addEventListener.bind(document);
+document.addEventListener = (type, listener, options) => {
+    if (type === 'visibilitychange') window.phase3VisibilityListeners += 1;
+    return originalAddEventListener(type, listener, options);
+};
+window.setTimeout = (callback, milliseconds) => {
+    const id = ++window.phase3TimerSequence;
+    window.phase3Timers.set(id, {callback, milliseconds});
+    return id;
+};
+window.clearTimeout = id => window.phase3Timers.delete(id);
+
+window.phase3Response = (body, status = 200) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+});
+
+window.fetch = async (url, options) => {
+    const payload = JSON.parse(options.body);
+    const kind = String(url).includes('like.php') ? 'like' : 'state';
+    window.phase3Calls.push({kind, identifier: payload.identifier, payload});
+    if (kind === 'like') {
+        return window.phase3Response({success: true, count: 9, success_message: 'OK', widget_text: {}} , 201);
+    }
+    if (window.phase3Deferred.has(payload.identifier)) {
+        return new Promise(resolve => window.phase3Deferred.set(payload.identifier, resolve));
+    }
+    const mode = window.phase3Modes.get(payload.identifier) || 'success';
+    if (mode === 'failure') return window.phase3Response({success: false}, 503);
+    if (mode === 'maintenance') {
+        return window.phase3Response({success: false, maintenance: true, widget_text: {maintenance: 'MAINTENANCE'}}, 503);
+    }
+    const result = {
+        success: true,
+        liked: false,
+        count: payload.identifier === 'shared' ? 3 : 1,
+        widget_text: {},
+    };
+    if (payload.identifier !== 'off') {
+        result.count_refresh_interval = payload.identifier === 'zero' ? 0 : 5;
+    }
+    return window.phase3Response(result);
+};
+</script>
+</head>
+<body>
+<div data-pollyanna-like data-identifier="shared"></div>
+<div data-pollyanna-like data-identifier="shared"></div>
+<div data-pollyanna-like data-identifier="shared"></div>
+<div data-pollyanna-like data-identifier="zero"></div>
+<div data-pollyanna-like data-identifier="off"></div>
+<div data-pollyanna-like data-identifier="other"></div>
+<pre id="result">RUNNING</pre>
+<script src="../assets/like.js"></script>
+<script src="../assets/like.js"></script>
+<script>
+window.addEventListener('load', async () => {
+    const results = [];
+    const check = (name, condition) => results.push({name, pass: Boolean(condition)});
+    const flush = async () => {
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    };
+    const calls = (kind, identifier) => window.phase3Calls.filter(call =>
+        call.kind === kind && (identifier === undefined || call.identifier === identifier)
+    );
+    const timerEntries = milliseconds => [...window.phase3Timers.entries()].filter(([, timer]) =>
+        milliseconds === undefined || timer.milliseconds === milliseconds
+    );
+    const runOneTimer = async (milliseconds, predicate = () => true) => {
+        const entry = timerEntries(milliseconds).find(([, timer]) => predicate(timer));
+        if (!entry) return false;
+        window.phase3Timers.delete(entry[0]);
+        entry[1].callback();
+        await flush();
+        return true;
+    };
+    const runAllTimers = async milliseconds => {
+        const entries = timerEntries(milliseconds);
+        for (const [id, timer] of entries) {
+            window.phase3Timers.delete(id);
+            timer.callback();
+        }
+        await flush();
+        return entries.length;
+    };
+
+    await flush();
+    check('four identifiers produce four initial requests', calls('state').length === 4);
+    check('three shared widgets produce one initial request', calls('state', 'shared').length === 1);
+    check('different identifiers initialize independently', ['shared', 'zero', 'off', 'other'].every(id => calls('state', id).length === 1));
+    check('shared initial count reaches every widget', [...document.querySelectorAll('[data-identifier="shared"] .pollyanna-like-count')].every(node => node.textContent === '3'));
+    check('double script load does not duplicate DOM', document.querySelectorAll('.pollyanna-like-button').length === 6);
+    check('double script load registers one visibility listener', window.phase3VisibilityListeners === 1);
+    check('zero interval schedules no timer', timerEntries(5000).length === 2);
+    check('count display off response schedules no timer', calls('state', 'off').length === 1 && timerEntries(5000).length === 2);
+
+    const initialStateCalls = calls('state').length;
+    check('two active identifiers have two five-second timers', await runAllTimers(5000) === 2);
+    check('five-second refresh runs once per active identifier', calls('state').length === initialStateCalls + 2);
+    check('shared refresh remains one request', calls('state', 'shared').length === 2);
+
+    window.phase3Hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    check('hidden page clears refresh timers', timerEntries().filter(([, timer]) => timer.milliseconds >= 5000).length === 0);
+    window.phase3Hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    check('visible page restores one timer per active identifier', timerEntries(5000).length === 2);
+    window.phase3Hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.phase3Hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    check('repeated visibility changes do not multiply timers', timerEntries(5000).length === 2);
+
+    window.phase3Deferred.set('shared', null);
+    const beforeDelayed = calls('state', 'shared').length;
+    await runAllTimers(5000);
+    const resolveDelayed = window.phase3Deferred.get('shared');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await runAllTimers(5000);
+    check('in-flight refresh is not duplicated', calls('state', 'shared').length === beforeDelayed + 1);
+    window.phase3Deferred.delete('shared');
+    resolveDelayed(window.phase3Response({success: true, liked: false, count: 4, count_refresh_interval: 5, widget_text: {}}));
+    await flush();
+
+    window.phase3Modes.set('other', 'failure');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await runAllTimers(5000);
+    check('first refresh failure backs off to ten seconds', timerEntries(10000).length === 1);
+    await runAllTimers(10000);
+    check('second refresh failure backs off to twenty seconds', timerEntries(20000).length === 1);
+    window.phase3Modes.set('other', 'success');
+    await runAllTimers(20000);
+    check('successful refresh restores normal interval', timerEntries(5000).length >= 1 && timerEntries(20000).length === 0);
+
+    window.phase3Modes.set('other', 'maintenance');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await runAllTimers(5000);
+    check('maintenance response stops identifier refresh', timerEntries(5000).length === 1);
+    check('maintenance disables affected widget', document.querySelector('[data-identifier="other"] button').disabled);
+
+    window.phase3Modes.set('shared', 'success');
+    window.phase3Deferred.set('shared', null);
+    document.dispatchEvent(new Event('visibilitychange'));
+    const stateBeforeRace = calls('state', 'shared').length;
+    await runAllTimers(5000);
+    const resolveStale = window.phase3Deferred.get('shared');
+    const sharedButton = document.querySelector('[data-identifier="shared"] button');
+    sharedButton.click();
+    await flush();
+    check('one click sends one Like request', calls('like', 'shared').length === 1);
+    check('Like success immediately synchronizes all shared buttons', [...document.querySelectorAll('[data-identifier="shared"] button')].every(button => button.textContent === '♥'));
+    window.phase3Deferred.delete('shared');
+    resolveStale(window.phase3Response({success: true, liked: false, count: 1, count_refresh_interval: 5, widget_text: {}}));
+    await flush();
+    check('stale state response does not overwrite Like count', [...document.querySelectorAll('[data-identifier="shared"] .pollyanna-like-count')].every(node => node.textContent === '9'));
+    check('race test issued one state refresh', calls('state', 'shared').length === stateBeforeRace + 1);
+
+    const failed = results.filter(result => !result.pass);
+    document.documentElement.dataset.testStatus = failed.length === 0 ? 'passed' : 'failed';
+    document.getElementById('result').textContent = JSON.stringify({passed: results.length - failed.length, failed}, null, 2);
+});
+</script>
+</body>
+</html>

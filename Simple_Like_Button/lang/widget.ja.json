@@ -3,6 +3,8 @@
   "button_label": "いいねを送信",
   "count_label": "いいね数",
   "identifier_missing": "識別子が設定されていません。",
+  "identifier_invalid": "識別子の形式が正しくありません。",
+  "identifier_generation_failed": "識別子を自動生成できません。data-identifierを指定してください。",
   "state_unavailable": "押下状態を確認できませんでした。",
   "maintenance": "メンテナンス中です。",
   "send_error": "送信できませんでした。通信を確認して、もう一度お試しください。",

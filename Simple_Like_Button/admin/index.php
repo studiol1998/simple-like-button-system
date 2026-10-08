@@ -5,6 +5,8 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 require_once dirname(__DIR__) . '/src/LikeService.php';
 require_once dirname(__DIR__) . '/src/AggregationService.php';
 require_once dirname(__DIR__) . '/src/TimezoneChangeService.php';
+require_once dirname(__DIR__) . '/src/OriginPolicy.php';
+require_once dirname(__DIR__) . '/src/InstallerState.php';
 
 $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
 $isLocalRequest = in_array($remoteAddress, ['127.0.0.1', '::1', '::ffff:127.0.0.1'], true);
@@ -33,21 +35,15 @@ if (!is_array($ui)) {
     throw new RuntimeException('Pollyanna admin interface translations are missing.');
 }
 $installerCompletionPath = dirname(__DIR__) . '/config/install_complete.json';
+$installerConfigPath = dirname(__DIR__) . '/config/config.php';
+$installerCredentialsPath = dirname(__DIR__) . '/config/admin_credentials.json';
 $installerDirectory = dirname(__DIR__) . '/install';
-$installerLockActive = false;
-if (is_file($installerCompletionPath) && is_dir($installerDirectory)) {
-    $completionContents = file_get_contents($installerCompletionPath);
-    if ($completionContents !== false) {
-        try {
-            $completion = json_decode($completionContents, true, 4, JSON_THROW_ON_ERROR);
-            $installerLockActive = is_array($completion) && ($completion['completed'] ?? false) === true;
-        } catch (JsonException) {
-            $installerLockActive = true;
-        }
-    } else {
-        $installerLockActive = true;
-    }
-}
+$installerLockActive = PollyannaInstallerState::shouldLockAdmin(
+    $installerDirectory,
+    $installerConfigPath,
+    $installerCredentialsPath,
+    $installerCompletionPath
+);
 if ($installerLockActive) {
     http_response_code(503);
     $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
@@ -181,6 +177,18 @@ $formRateLimit = pollyanna_rate_limit();
 $formShowCount = pollyanna_count_display_enabled();
 $formRefreshInterval = pollyanna_count_refresh_interval();
 $formCountColor = pollyanna_count_display_color();
+$buttonSymbolPresets = pollyanna_button_symbol_presets();
+$buttonPresetLabels = $language === 'ja'
+    ? ['heart' => 'ハート', 'diamond' => 'ダイヤ', 'spade' => 'スペード', 'club' => 'クラブ', 'star' => '星', 'music' => '音符']
+    : ['heart' => 'Heart', 'diamond' => 'Diamond', 'spade' => 'Spade', 'club' => 'Club', 'star' => 'Star', 'music' => 'Music'];
+$buttonDisplaySettings = pollyanna_button_display_settings();
+$formButtonSymbolPreset = $buttonDisplaySettings['preset'];
+$formButtonUnlikedColor = $buttonDisplaySettings['unliked_color'];
+$formButtonLikedColor = $buttonDisplaySettings['liked_color'];
+$originConfig = pollyanna_config();
+$formSiteOrigin = (string) ($originConfig['site_origin'] ?? '');
+$formBaseDomain = (string) ($originConfig['site_base_domain'] ?? '');
+$formBaseSubdomains = ($originConfig['site_base_domain_include_subdomains'] ?? false) === true;
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $postedToken = $_POST['csrf_token'] ?? '';
@@ -232,6 +240,50 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $_SESSION['pollyanna_skip_access_aggregation'] = true;
         header('Location: ?tab=dashboard');
         exit;
+    } elseif ($action === 'save_origin_settings') {
+        try {
+            $originInput = is_string($_POST['site_origin'] ?? null) ? trim($_POST['site_origin']) : '';
+            $baseDomainInput = is_string($_POST['site_base_domain'] ?? null) ? trim($_POST['site_base_domain']) : '';
+            $include = ($_POST['site_base_domain_include_subdomains'] ?? '') === '1';
+            $siteSettings = PollyannaOrigin::normalizeSiteSettings($originInput, $baseDomainInput, $include);
+            $origin = $siteSettings['origin'];
+            $baseDomain = $siteSettings['base_domain'];
+            $include = $siteSettings['include_subdomains'];
+            pollyanna_save_config_values(['site_origin' => $origin->serialize(), 'site_base_domain' => $baseDomain, 'site_base_domain_include_subdomains' => $include]);
+            $_SESSION['pollyanna_settings_result'] = $language === 'ja' ? '本体Origin設定を保存しました。' : 'Primary origin settings saved.';
+            header('Location: ?tab=settings'); exit;
+        } catch (Throwable $error) {
+            error_log('Pollyanna origin settings save failed: ' . $error->getMessage());
+            $settingsError = $language === 'ja' ? 'Originと基準ドメインの形式、および両者の対応を確認してください。基準ドメインはOriginのhost自身か、その親ドメインにしてください。' : 'Check the origin, base domain, and their relationship. The base domain must be the origin host itself or one of its parent domains.';
+        }
+    } elseif ($action === 'add_allowed_origin') {
+        try {
+            $origin = PollyannaOrigin::parse(is_string($_POST['allowed_origin'] ?? null) ? trim($_POST['allowed_origin']) : '');
+            $include = ($_POST['include_subdomains'] ?? '') === '1';
+            if ($origin->isLocalOrIp()) $include = false;
+            $pdo = pollyanna_pdo(); pollyanna_ensure_allowed_origins_table($pdo);
+            $statement = $pdo->prepare('INSERT INTO pollyanna_allowed_origins (scheme, host, port, include_subdomains, created_at) VALUES (:scheme, :host, :port, :include_subdomains, UTC_TIMESTAMP(6))');
+            $statement->execute(['scheme' => $origin->scheme, 'host' => $origin->host, 'port' => $origin->port, 'include_subdomains' => $include ? 1 : 0]);
+            $_SESSION['pollyanna_settings_result'] = $language === 'ja' ? '外部Originを追加しました。' : 'External origin added.';
+            header('Location: ?tab=settings'); exit;
+        } catch (Throwable $error) {
+            error_log('Pollyanna allowed origin add failed: ' . $error->getMessage());
+            $settingsError = $language === 'ja' ? '外部Originを追加できませんでした。形式または重複を確認してください。' : 'Could not add the external origin. Check its format and duplicates.';
+        }
+    } elseif ($action === 'delete_allowed_origin') {
+        try {
+            $id = filter_var($_POST['allowed_origin_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if (!is_int($id)) throw new InvalidArgumentException('Invalid ID.');
+            $statement = pollyanna_pdo()->prepare('DELETE FROM pollyanna_allowed_origins WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            $_SESSION['pollyanna_settings_result'] = $statement->rowCount() === 1
+                ? ($language === 'ja' ? '外部Originを削除しました。' : 'External origin deleted.')
+                : ($language === 'ja' ? '対象のOriginはすでに存在しないか、削除済みです。' : 'The origin no longer exists or has already been deleted.');
+            header('Location: ?tab=settings'); exit;
+        } catch (Throwable $error) {
+            error_log('Pollyanna allowed origin delete failed: ' . $error->getMessage());
+            $settingsError = (string) $ui['settings_save_error'];
+        }
     } elseif ($action === 'save_admin_operation') {
         $requestedState = $_POST['system_state'] ?? '';
         $requestedThreshold = filter_var($_POST['aggregation_start_threshold'] ?? null, FILTER_VALIDATE_INT);
@@ -269,6 +321,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $requestedVisibility = $_POST['show_like_count'] ?? '';
         $requestedInterval = filter_var($_POST['count_refresh_interval'] ?? $formRefreshInterval, FILTER_VALIDATE_INT);
         $requestedColor = $_POST['like_count_color'] ?? $formCountColor;
+        $requestedSymbolPreset = $_POST['button_symbol_preset'] ?? '';
+        $requestedUnlikedColor = is_string($_POST['button_unliked_color'] ?? null) ? strtolower($_POST['button_unliked_color']) : '';
+        $requestedLikedColor = is_string($_POST['button_liked_color'] ?? null) ? strtolower($_POST['button_liked_color']) : '';
         $valid =
             is_string($requestedLanguage)
             && isset($widgetCatalog[$requestedLanguage])
@@ -281,7 +336,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             && is_int($requestedInterval)
             && in_array($requestedInterval, [0, 5, 10, 30, 60], true)
             && is_string($requestedColor)
-            && preg_match('/\A#[0-9a-fA-F]{6}\z/', $requestedColor) === 1;
+            && preg_match('/\A#[0-9a-fA-F]{6}\z/', $requestedColor) === 1
+            && is_string($requestedSymbolPreset)
+            && array_key_exists($requestedSymbolPreset, $buttonSymbolPresets)
+            && in_array($requestedUnlikedColor, ['#666666', '#cccccc'], true)
+            && preg_match('/\A#[0-9a-f]{6}\z/', $requestedLikedColor) === 1;
         if (!$valid) {
             http_response_code(422);
             $settingsError = (string) $ui['settings_save_error'];
@@ -292,15 +351,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $formShowCount = $requestedVisibility === 'on';
             $formRefreshInterval = $requestedInterval;
             $formCountColor = strtolower($requestedColor);
+            $formButtonSymbolPreset = $requestedSymbolPreset;
+            $formButtonUnlikedColor = $requestedUnlikedColor;
+            $formButtonLikedColor = $requestedLikedColor;
             try {
                 pollyanna_save_settings_group(
-                    ['widget_settings.json', 'rate_limit_settings.json', 'public_count_settings.json', 'count_refresh_settings.json', 'public_count_color_settings.json'],
-                    static function () use ($requestedLanguage, $requestedMessage, $requestedLimit, $requestedVisibility, $requestedInterval, $requestedColor): void {
+                    ['widget_settings.json', 'rate_limit_settings.json', 'public_count_settings.json', 'count_refresh_settings.json', 'public_count_color_settings.json', 'button_display_settings.json'],
+                    static function () use ($requestedLanguage, $requestedMessage, $requestedLimit, $requestedVisibility, $requestedInterval, $requestedColor, $requestedSymbolPreset, $requestedUnlikedColor, $requestedLikedColor): void {
                         pollyanna_save_widget_settings($requestedLanguage, $requestedMessage);
                         pollyanna_save_rate_limit($requestedLimit);
                         pollyanna_save_count_display($requestedVisibility === 'on');
                         pollyanna_save_count_refresh_interval($requestedInterval);
                         pollyanna_save_count_display_color($requestedColor);
+                        pollyanna_save_button_display_settings($requestedSymbolPreset, $requestedUnlikedColor, $requestedLikedColor);
                     }
                 );
                 $_SESSION['pollyanna_settings_result'] = (string) $ui['public_display_saved'];
@@ -347,10 +410,15 @@ $dailyLabels = $monthlyLabels = $hourlyLabels = [];
 $availableDetailMonths = [];
 $detailRows = [];
 $selectedDetailId = is_string($_GET['id'] ?? null) ? trim((string) $_GET['id']) : '';
-if (strlen($selectedDetailId) > 200) $selectedDetailId = '';
+if ($selectedDetailId !== '' && !pollyanna_identifier_is_valid($selectedDetailId)) $selectedDetailId = '';
 $detailTrendValues = $detailTrendLabels = [];
 $detailSearch = is_string($_GET['q'] ?? null) ? trim((string) $_GET['q']) : '';
-if (strlen($detailSearch) > 200) $detailSearch = substr($detailSearch, 0, 200);
+$detailSearchCharacters = preg_split('//u', $detailSearch, -1, PREG_SPLIT_NO_EMPTY);
+if ($detailSearchCharacters === false) {
+    $detailSearch = '';
+} elseif (count($detailSearchCharacters) > 100) {
+    $detailSearch = implode('', array_slice($detailSearchCharacters, 0, 100));
+}
 $detailPeriod = is_string($_GET['period'] ?? null) && in_array($_GET['period'], ['7', '30', 'year', 'all'], true) ? $_GET['period'] : '7';
 $detailUnit = is_string($_GET['unit'] ?? null) && in_array($_GET['unit'], ['day', 'month', 'year'], true) ? $_GET['unit'] : 'day';
 $detailPage = filter_var($_GET['page'] ?? 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 1;
@@ -578,6 +646,8 @@ try {
 }
 
 $systemState = pollyanna_system_state();
+$allowedOrigins = [];
+try { $allowedOrigins = pollyanna_allowed_origins(); } catch (Throwable $error) { error_log('Pollyanna allowed origin list failed: ' . $error->getMessage()); }
 $activeTab = $_GET['tab'] ?? 'dashboard';
 if (!is_string($activeTab) || !in_array($activeTab, ['dashboard', 'details', 'settings'], true)) $activeTab = 'dashboard';
 $retrievedAt = (new DateTimeImmutable('now', new DateTimeZone($settings['timezone'])))->format('Y-m-d H:i');
@@ -623,10 +693,16 @@ $timezoneChangeState = pollyanna_timezone_change_state();
 <div class="table-scroll id-table"><table><thead><tr><th><?= admin_h($catalog[$language]['like_id']) ?></th><th><?= admin_h($catalog[$language]['lifetime_count']) ?></th><th><?= admin_h($ui['period_count']) ?></th><th><?= admin_h($ui['installation_url']) ?></th></tr></thead><tbody><?php $idLinkBase = ['tab' => 'details', 'month' => $selectedDetailMonth, 'q' => $detailSearch, 'period' => $detailPeriod, 'unit' => $detailUnit, 'page' => $detailPage]; foreach ($detailRows as $detailRow): $rowIdentifier = (string) $detailRow['identifier']; ?><tr class="<?= $selectedDetailId === $rowIdentifier ? 'is-selected' : '' ?>"><td><a href="?<?= admin_h(http_build_query($idLinkBase + ['id' => $rowIdentifier])) ?>"><?= admin_h($rowIdentifier) ?></a></td><td><?= number_format((int) $detailRow['total_likes']) ?></td><td><?= number_format((int) $detailRow['period_likes']) ?></td><td class="url-cell"><?php if ($detailRow['urls'] === []): ?><span class="muted"><?= admin_h($ui['url_unregistered']) ?></span><?php else: ?><?php foreach ($detailRow['urls'] as $installationUrl): ?><a href="<?= admin_h($installationUrl) ?>" target="_blank" rel="noopener noreferrer"><?= admin_h($installationUrl) ?></a><?php endforeach ?><?php endif ?></td></tr><?php endforeach ?></tbody></table></div><?php if ($detailRows === []): ?><p class="empty id-empty"><?= admin_h($ui['no_matching_ids']) ?></p><?php endif ?><?php if ($detailTotalPages > 1): ?><nav class="pagination" aria-label="<?= admin_h($ui['details_by_id']) ?>"><?php $baseDetailQuery = ['tab' => 'details', 'month' => $selectedDetailMonth, 'q' => $detailSearch, 'period' => $detailPeriod, 'unit' => $detailUnit]; if ($detailPage > 1): ?><a href="?<?= admin_h(http_build_query($baseDetailQuery + ['page' => $detailPage - 1])) ?>"><?= admin_h($ui['previous_page']) ?></a><?php endif ?><span><?= admin_h(sprintf($ui['page_status'], $detailPage, $detailTotalPages)) ?></span><?php if ($detailPage < $detailTotalPages): ?><a href="?<?= admin_h(http_build_query($baseDetailQuery + ['page' => $detailPage + 1])) ?>"><?= admin_h($ui['next_page']) ?></a><?php endif ?></nav><?php endif ?></section>
     </section>
     <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" data-admin-panel="settings" <?= $activeTab === 'settings' ? '' : 'hidden' ?>>
-        <div class="heading settings-heading"><div><h1><?= admin_h($ui['settings']) ?></h1><p class="muted"><?= admin_h($ui['settings_intro']) ?></p></div><aside class="timezone-quick"><div class="timezone-heading-row"><h2><?= admin_h($catalog[$language]['timezone']) ?></h2><p class="muted timezone-note"><?= admin_h($catalog[$language]['timezone_change_warning']) ?></p></div><form class="timezone-controls" data-timezone-form data-confirm-text="<?= admin_h($catalog[$language]['timezone_change_confirm']) ?>"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><label class="visually-hidden" for="settings-timezone"><?= admin_h($catalog[$language]['timezone']) ?></label><select id="settings-timezone" name="timezone"><?php $selectedTimezone = $timezoneChangeState['new_timezone'] ?? $settings['timezone']; foreach (DateTimeZone::listIdentifiers() as $timezoneOption): ?><option value="<?= admin_h($timezoneOption) ?>" <?= $selectedTimezone === $timezoneOption ? 'selected' : '' ?>><?= admin_h($timezoneOption) ?></option><?php endforeach ?></select><button class="primary" type="submit" data-timezone-button><?= admin_h($timezoneChangeState === null ? $catalog[$language]['change_timezone'] : $catalog[$language]['resume_timezone_change']) ?></button></form><p class="result timezone-result" data-timezone-result role="status" aria-live="polite"><?= $timezoneChangeState === null ? '' : admin_h($catalog[$language]['timezone_change_interrupted']) ?></p></aside></div>
+        <div class="heading settings-heading"><h1><?= admin_h($ui['settings']) ?></h1><p class="muted"><?= admin_h($ui['settings_intro']) ?></p></div>
         <?php if ($settingsResult !== ''): ?><div class="notice settings-notice" role="status"><?= admin_h($settingsResult) ?></div><?php endif ?>
         <?php if ($settingsError !== ''): ?><div class="notice settings-error" role="alert"><?= admin_h($settingsError) ?></div><?php endif ?>
         <div class="setting-grid">
+            <div class="settings-left-column">
+            <aside class="panel settings-card timezone-card">
+                <div class="timezone-heading-row"><h2><?= admin_h($catalog[$language]['timezone']) ?></h2><p class="muted timezone-note"><?= admin_h($catalog[$language]['timezone_change_warning']) ?></p></div>
+                <form class="timezone-controls" data-timezone-form data-confirm-text="<?= admin_h($catalog[$language]['timezone_change_confirm']) ?>"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><label class="visually-hidden" for="settings-timezone"><?= admin_h($catalog[$language]['timezone']) ?></label><select id="settings-timezone" name="timezone"><?php $selectedTimezone = $timezoneChangeState['new_timezone'] ?? $settings['timezone']; foreach (DateTimeZone::listIdentifiers() as $timezoneOption): ?><option value="<?= admin_h($timezoneOption) ?>" <?= $selectedTimezone === $timezoneOption ? 'selected' : '' ?>><?= admin_h($timezoneOption) ?></option><?php endforeach ?></select><button class="primary" type="submit" data-timezone-button><?= admin_h($timezoneChangeState === null ? $catalog[$language]['change_timezone'] : $catalog[$language]['resume_timezone_change']) ?></button></form>
+                <p class="result timezone-result" data-timezone-result role="status" aria-live="polite"><?= $timezoneChangeState === null ? '' : admin_h($catalog[$language]['timezone_change_interrupted']) ?></p>
+            </aside>
             <section class="panel settings-card">
                 <h2><?= admin_h($ui['admin_operation_settings']) ?></h2>
                 <form class="theme-form" method="get"><input type="hidden" name="tab" value="settings"><div class="field"><label for="admin-theme"><?= admin_h($ui['admin_theme']) ?></label><p class="field-help"><?= admin_h($language === 'ja' ? '色別テーマは白基調です。システムは端末のライト／ダーク設定に追従します。' : 'Color themes use a white base. System follows the device light/dark preference.') ?></p><select id="admin-theme" data-theme-select name="theme"><?php foreach (pollyanna_admin_themes() as $themeCode): ?><option value="<?= admin_h($themeCode) ?>" <?= $theme === $themeCode ? 'selected' : '' ?>><?= admin_h($ui['themes'][$themeCode]) ?></option><?php endforeach ?></select></div></form>
@@ -637,6 +713,7 @@ $timezoneChangeState = pollyanna_timezone_change_state();
                     <div class="save-row"><button class="primary" type="submit"><?= admin_h($ui['save_admin_operation']) ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
                 </form>
             </section>
+            </div>
             <section class="panel settings-card">
                 <h2><?= admin_h($ui['public_display_settings']) ?></h2>
                 <form method="post" data-settings-form="public-display" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="save_public_display">
@@ -645,11 +722,40 @@ $timezoneChangeState = pollyanna_timezone_change_state();
                     <div class="field"><label for="rate-limit"><?= admin_h($catalog[$language]['rate_limit']) ?></label><p class="field-help"><?= admin_h($ui['limit_help']) ?></p><select id="rate-limit" name="likes_per_24_hours"><?php foreach ([1, 2, 3, 4, 5] as $limit): ?><option value="<?= $limit ?>" <?= $formRateLimit === $limit ? 'selected' : '' ?>><?= $limit ?></option><?php endforeach ?></select></div>
                     <div class="field"><label for="show-count"><?= admin_h($catalog[$language]['public_count']) ?></label><p class="field-help field-help-lines"><span><?= admin_h($ui['count_visibility_on_help']) ?></span><span><?= admin_h($ui['count_visibility_off_help']) ?></span></p><select id="show-count" name="show_like_count" data-count-visibility><option value="off" <?= !$formShowCount ? 'selected' : '' ?>><?= admin_h($catalog[$language]['off']) ?></option><option value="on" <?= $formShowCount ? 'selected' : '' ?>><?= admin_h($catalog[$language]['on']) ?></option></select></div>
                     <div class="field"><label for="refresh-interval"><?= admin_h($catalog[$language]['count_refresh_interval']) ?><select id="refresh-interval" name="count_refresh_interval" data-count-dependent <?= !$formShowCount ? 'disabled' : '' ?>><?php foreach ($catalog[$language]['refresh_intervals'] as $seconds => $label): ?><option value="<?= admin_h((string) $seconds) ?>" <?= $formRefreshInterval === (int) $seconds ? 'selected' : '' ?>><?= admin_h($label) ?></option><?php endforeach ?></select></label></div>
+                    <div class="field"><label for="button-symbol-preset"><?= admin_h($language === 'ja' ? 'いいねボタンの文字記号' : 'Like button symbol') ?></label><select id="button-symbol-preset" name="button_symbol_preset" data-button-symbol-preset><?php foreach ($buttonSymbolPresets as $presetKey => $symbols): ?><option value="<?= admin_h($presetKey) ?>" <?= $formButtonSymbolPreset === $presetKey ? 'selected' : '' ?>><?= admin_h($buttonPresetLabels[$presetKey] . '（' . $symbols['unliked'] . ' / ' . $symbols['liked'] . '）') ?></option><?php endforeach ?></select></div>
+                    <fieldset class="field symbol-color-field"><legend><?= admin_h($language === 'ja' ? '未押下時の記号色' : 'Unliked symbol color') ?></legend><div class="symbol-color-options"><?php foreach (['#666666' => ($language === 'ja' ? '濃い灰色（標準）' : 'Dark gray (standard)'), '#cccccc' => ($language === 'ja' ? '薄い灰色' : 'Light gray')] as $colorValue => $colorLabel): ?><label><input type="radio" name="button_unliked_color" value="<?= $colorValue ?>" <?= $formButtonUnlikedColor === $colorValue ? 'checked' : '' ?> data-button-unliked-color><span class="color-swatch" style="--swatch-color:<?= $colorValue ?>" aria-hidden="true"></span><span><?= admin_h($colorLabel) ?></span></label><?php endforeach ?></div></fieldset>
+                    <div class="field count-color-field"><label for="button-liked-color"><?= admin_h($language === 'ja' ? '押下後の記号色' : 'Liked symbol color') ?></label><p id="button-liked-color-help" class="field-help"><?= admin_h($language === 'ja' ? '色見本をクリックするか、#＋6桁の16進数を入力してください。' : 'Choose a swatch or enter a # followed by 6 hexadecimal digits.') ?></p><div class="count-color-control"><input id="button-liked-color" name="button_liked_color" type="color" value="<?= admin_h($formButtonLikedColor) ?>" data-button-liked-color><label class="visually-hidden" for="button-liked-color-hex"><?= admin_h($language === 'ja' ? '押下後の記号色（16進数）' : 'Liked symbol color (hex)') ?></label><input id="button-liked-color-hex" class="count-color-hex" type="text" value="<?= admin_h(strtoupper($formButtonLikedColor)) ?>" pattern="#[0-9A-Fa-f]{6}" maxlength="7" inputmode="text" autocomplete="off" spellcheck="false" aria-describedby="button-liked-color-help" data-button-liked-color-value data-invalid-text="<?= admin_h($ui['count_color_hex_error']) ?>"></div></div>
                     <div class="field count-color-field"><label for="count-color"><?= admin_h($ui['count_color']) ?></label><p id="count-color-help" class="field-help"><?= admin_h($ui['count_color_help']) ?></p><div class="count-color-control"><input id="count-color" name="like_count_color" type="color" value="<?= admin_h($formCountColor) ?>" data-count-dependent <?= !$formShowCount ? 'disabled' : '' ?>><label class="visually-hidden" for="count-color-hex"><?= admin_h($ui['count_color_hex']) ?></label><input id="count-color-hex" class="count-color-hex" type="text" value="<?= admin_h(strtoupper($formCountColor)) ?>" pattern="#[0-9A-Fa-f]{6}" maxlength="7" inputmode="text" autocomplete="off" spellcheck="false" aria-describedby="count-color-help" data-count-color-value data-invalid-text="<?= admin_h($ui['count_color_hex_error']) ?>" data-count-dependent <?= !$formShowCount ? 'disabled' : '' ?>></div></div>
+                    <section class="like-preview" aria-labelledby="like-preview-title"><div class="like-preview-heading"><h3 id="like-preview-title"><?= admin_h($language === 'ja' ? '表示プレビュー' : 'Display preview') ?></h3><div class="preview-background-options" role="group" aria-label="<?= admin_h($language === 'ja' ? 'プレビュー背景' : 'Preview background') ?>"><button type="button" class="preview-background-button is-active" data-preview-background="light"><?= admin_h($language === 'ja' ? '明るい背景' : 'Light') ?></button><button type="button" class="preview-background-button" data-preview-background="dark"><?= admin_h($language === 'ja' ? '暗い背景' : 'Dark') ?></button></div></div><div class="like-preview-stage" data-like-preview-stage data-background="light"><button type="button" class="like-preview-button" data-like-preview-button aria-pressed="false"><?= admin_h($buttonSymbolPresets[$formButtonSymbolPreset]['unliked']) ?></button><span class="like-preview-count" data-like-preview-count>128</span></div><p class="field-help"><?= admin_h($language === 'ja' ? '記号をクリックすると、未押下・押下後を切り替えられます。実際のいいね数には影響しません。' : 'Click the symbol to switch between unliked and liked. This does not affect real Like counts.') ?></p></section>
                     <div class="save-row"><button class="primary" type="submit"><?= admin_h($ui['save_public_display']) ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
                 </form>
             </section>
         </div>
+        <section class="panel settings-card origin-settings">
+            <h2><?= admin_h($language === 'ja' ? '利用を許可するサイトの設定（Origin設定）' : 'Allowed site settings (Origin settings)') ?></h2>
+            <section class="origin-section" aria-labelledby="primary-origin-heading">
+                <h3 id="primary-origin-heading"><?= admin_h($language === 'ja' ? 'このサイトの設定' : 'This site') ?></h3>
+                <p class="origin-description"><?= admin_h($language === 'ja' ? 'このサイト自身のアドレスを登録します。Pollyannaを設置しているサイトのアドレスです。' : 'Register the address of this site, where Pollyanna is installed.') ?></p>
+                <form method="post"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="save_origin_settings">
+                    <div class="field"><label for="site-origin"><?= admin_h($language === 'ja' ? 'このサイトのアドレス（Origin）' : 'This site address (Origin)') ?></label><input id="site-origin" name="site_origin" type="url" required value="<?= admin_h($formSiteOrigin) ?>" data-origin-host-source data-site-origin><p class="field-help"><?= admin_h($language === 'ja' ? 'http:// や https:// から始まるアドレス全体を入力します。（例：https://example.com）' : 'Enter the complete address beginning with http:// or https://. (Example: https://example.com)') ?></p></div>
+                    <details class="origin-advanced"><summary><?= admin_h($language === 'ja' ? '詳細設定' : 'Advanced settings') ?></summary><div class="field"><label for="site-base-domain"><?= admin_h($language === 'ja' ? 'このサイトのドメイン' : 'This site domain') ?></label><input id="site-base-domain" name="site_base_domain" type="text" required value="<?= admin_h($formBaseDomain) ?>" data-base-domain><p class="field-help"><?= admin_h($language === 'ja' ? 'アドレスのホスト名をもとに、このサイトで利用する基本ドメインを指定します。（例：example.com）' : 'Specify the base domain used by this site from the address host name. (Example: example.com)') ?></p></div></details>
+                    <label class="check-label"><input type="checkbox" name="site_base_domain_include_subdomains" value="1" <?= $formBaseSubdomains ? 'checked' : '' ?> data-subdomain-toggle> <span><?= admin_h($language === 'ja' ? 'このサイトのサブドメインからの利用も許可する' : 'Also allow use from subdomains of this site') ?><small><?= admin_h($language === 'ja' ? '（例：blog.example.com）' : ' (Example: blog.example.com)') ?></small></span></label>
+                    <div class="save-row"><button class="primary" type="submit"><?= admin_h($language === 'ja' ? 'このサイトの設定を保存' : 'Save this site settings') ?></button></div>
+                </form>
+            </section>
+            <section class="origin-section" aria-labelledby="external-origin-heading">
+            <h3 id="external-origin-heading"><?= admin_h($language === 'ja' ? '他のサイトからの利用許可' : 'Allow use from other sites') ?></h3>
+            <p class="origin-description"><?= admin_h($language === 'ja' ? '公開APIを、ブラウザー上の他のWebサイトから使えるようにするための設定です。登録したサイトのアドレスからだけ利用できます。' : 'Allow the public API to be used by other websites in a browser. Only registered site addresses can use it.') ?></p>
+            <?php if ($allowedOrigins === []): ?><p class="muted"><?= admin_h($language === 'ja' ? '他のサイトはまだ登録されていません。' : 'No other sites are registered yet.') ?></p><?php else: ?>
+            <div class="table-scroll"><table><thead><tr><th><?= admin_h($language === 'ja' ? 'サイトのアドレス（Origin）' : 'Site address (Origin)') ?></th><th><?= admin_h($language === 'ja' ? 'サブドメインも許可' : 'Allow subdomains') ?></th><th></th></tr></thead><tbody><?php foreach ($allowedOrigins as $allowed): $allowedObject = new PollyannaOrigin((string) $allowed['scheme'], (string) $allowed['host'], (int) $allowed['port']); $allowedOriginValue = $allowedObject->serialize(); $deleteConfirmation = $language === 'ja' ? sprintf("「%s」の利用許可を削除しますか？\n\n削除すると、このサイトからPollyannaの公開APIを利用できなくなります。", $allowedOriginValue) : sprintf("Remove permission for \"%s\"?\n\nAfter removal, this site will no longer be able to use the Pollyanna public API.", $allowedOriginValue); ?><tr><td><?= admin_h($allowedOriginValue) ?></td><td><?= ((int) $allowed['include_subdomains']) === 1 ? admin_h($language === 'ja' ? '許可する' : 'Allowed') : admin_h($language === 'ja' ? '許可しない' : 'Not allowed') ?></td><td><form method="post" data-origin-delete-form data-confirm-message="<?= admin_h($deleteConfirmation) ?>"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="delete_allowed_origin"><input type="hidden" name="allowed_origin_id" value="<?= (int) $allowed['id'] ?>"><button type="submit"><?= admin_h($language === 'ja' ? '削除' : 'Delete') ?></button></form></td></tr><?php endforeach ?></tbody></table></div>
+            <?php endif ?>
+            <form method="post"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="add_allowed_origin">
+                <div class="field"><label for="allowed-origin"><?= admin_h($language === 'ja' ? '許可するサイトのアドレス（Origin）' : 'Allowed site address (Origin)') ?></label><input id="allowed-origin" name="allowed_origin" type="url" required placeholder="https://example.com" data-origin-host-source><p class="field-help origin-note"><?= admin_h($language === 'ja' ? '「http」と「https」、またはポート番号が違うと別のアドレスとして扱われます。' : 'Different schemes (http or https) or port numbers are treated as different addresses.') ?></p></div>
+                <label class="check-label"><input type="checkbox" name="include_subdomains" value="1" data-subdomain-toggle> <span><?= admin_h($language === 'ja' ? 'サブドメインも許可する' : 'Also allow subdomains') ?><small><?= admin_h($language === 'ja' ? '（例：blog.example.com）' : ' (Example: blog.example.com)') ?></small></span></label>
+                <div class="save-row"><button class="primary" type="submit"><?= admin_h($language === 'ja' ? 'サイトを追加' : 'Add site') ?></button></div>
+            </form>
+            </section>
+        </section>
     </section>
 </main>
 <footer class="site-footer"><div>Pollyanna — An Easy-to-Install Like Button System</div><div>Developed by Nikukiu-SYSTEM</div></footer>

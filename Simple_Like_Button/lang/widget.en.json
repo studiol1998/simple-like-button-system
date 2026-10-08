@@ -3,6 +3,8 @@
   "button_label": "Send a Like",
   "count_label": "Like count",
   "identifier_missing": "A Like ID has not been set.",
+  "identifier_invalid": "The Like ID format is invalid.",
+  "identifier_generation_failed": "A Like ID could not be generated. Set data-identifier manually.",
   "state_unavailable": "Could not load Like state.",
   "maintenance": "The Like service is under maintenance.",
   "send_error": "Could not send your Like. Check your connection and try again.",

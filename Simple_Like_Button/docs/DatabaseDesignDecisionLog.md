@@ -90,5 +90,12 @@ XAMPPのMariaDB 10.4.32上に一時データベース `pollyanna_integration_tmp
 - 閲覧中URLを自動取得せず、設置者がウィジェットの `data-url` に明示したHTTP/HTTPSの正規URLだけを保存する。
 - URLは `pollyanna_identifier_urls` に保存し、Like IDとURLのSHA-256を複合主キーとする。同じIDに複数URLを許可する。
 - URLに認証情報またはフラグメントがある場合は受け付けない。状態復元または押下送信時に `data-url` がある場合だけ登録・最終確認時刻を更新する。
+
+## 6. v1.0 Phase 1による更新（2026-10-07）
+
+- `identifier` はLikeボタンではなく集計対象のIDとし、同じIDを複数ウィジェットで共有できる。
+- 最大長を100 Unicode code pointsへ拡張し、既存5テーブル用migrationを追加する。
+- `data-identifier` 省略時は現在pathとDOM順から自動生成する。空属性はエラーとする。
+- 設置先URLは `data-url`、canonical、`og:url`、現在URLの順に取得し、query・fragmentを除いてLike成立後だけ登録する。本節は上記「設置先URLと管理認証」の旧登録条件を更新する。
 - 管理パスワードは12文字以上とし、`config/admin_credentials.json` には `password_hash()` の結果だけを保存する。
 - 初回設定はlocalhostに限定する。ログイン成功時にセッションIDを更新し、CSRF検証、1分5回の試行制限、ログアウトを実装する。

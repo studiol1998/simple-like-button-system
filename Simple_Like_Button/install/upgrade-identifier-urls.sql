@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS pollyanna_identifier_urls (
-    identifier VARCHAR(50) NOT NULL,
+    identifier VARCHAR(100) NOT NULL,
     url_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     canonical_url TEXT NOT NULL,
     first_seen_at DATETIME(6) NOT NULL,

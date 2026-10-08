@@ -85,3 +85,7 @@ The installer does not create the database or its user. Some hosts automatically
 ## XAMPP verification
 
 On 2026-10-04, the full flow was verified using an isolated `Pollyanna_Installer_Test` copy, a dedicated empty database, and a localhost-only database user. Environment checks, database verification, basic settings, review, table creation, configuration saving, and the completion screen all succeeded. While `install/` remained, Admin showed only the deletion requirement and denied login. Renaming `install/` unlocked Admin; the password created during installation successfully opened the empty-database Dashboard. A dedicated page then verified Like submission, restored heart state, public count display, aggregation on Admin access, and Dashboard charts.
+
+## v1.0 Phase 2: primary site settings
+
+The Basic settings screen suggests a primary origin and base domain derived from the installer URL and requires the administrator to confirm or edit them. The candidate is not trusted automatically. Subdomain access defaults to ON and is disabled for localhost or IP addresses. Confirmed values are stored in `config.php`.

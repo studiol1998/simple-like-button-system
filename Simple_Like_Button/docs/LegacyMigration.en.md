@@ -15,7 +15,7 @@ The previous PHP beta is preserved for reference in `../legacy/like_button_beta_
 
 ## Known beta limitations
 
-- The beta uses `page_id` up to 255 characters; the current design limits `identifier` to 50 characters.
+- The beta used `page_id` up to 255 characters. v0.4.1 limited `identifier` to 50 characters; v1.0 Phase 1 expands it to 100 Unicode code points.
 - It hashes IP addresses with plain SHA-256. The current design specifies HMAC with an installation-specific secret key.
 - It applies a global IP-based limit and does not define client hashes or concurrent request behavior.
 - The write API does not fully validate JSON or identifiers and does not check whether database insertion succeeded.
@@ -24,3 +24,7 @@ The previous PHP beta is preserved for reference in `../legacy/like_button_beta_
 - The config contains placeholder database credentials and has no secret-key generation or post-install security check.
 
 Use the beta to recover intended behavior, then implement it against the current specifications. Do not deploy the preserved beta package as-is.
+
+## v1.0 Phase 2
+
+Run `install/upgrade-allowed-origins.sql` to add the external-origin allowlist table. Then save the primary origin, base domain, and subdomain policy in the Admin Settings tab. The public API allows no origin until these settings are complete.

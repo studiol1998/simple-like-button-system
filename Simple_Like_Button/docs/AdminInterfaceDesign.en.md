@@ -28,7 +28,7 @@ Place the hourly trend chart above search and list controls so the overall trend
 
 Search by Like ID and select dates and daily/monthly/yearly granularity. Show the ID lifetime total, period total, chart, and table. Paginate the complete ID list instead of fixing it to the latest 100.
 
-Keep the ID, period, and granularity controls only as wide as their contents and align them from the left. Add installation URLs as the rightmost list column. Associate each ID with canonical URLs explicitly supplied through `data-url`; never collect the browsing URL automatically, and support multiple locations for a shared ID. `pollyanna_identifier_urls` and the admin display were implemented on 2026-10-03.
+Keep the ID, period, and granularity controls only as wide as their contents and align them from the left. Add installation URLs as the rightmost list column. Associate each ID with the normalized URL selected by the widget URL priority after a Like succeeds, and support multiple locations for a shared ID. `pollyanna_identifier_urls` and the admin display were implemented on 2026-10-03; v1.0 Phase 1 updates the registration timing.
 
 Hourly statistics are site-wide, shown separately from ID details: the current storage cannot provide hourly statistics for each ID. Select a month or year and show 24 hourly bars, counts, and percentages. The denominator is the selected period's total hourly count. Label these as aggregated data and show the aggregation time. Empty datasets display an empty state without percentage calculations.
 
@@ -41,13 +41,15 @@ Place the aggregation timezone selector and change action to the right of the Se
 | Save group | Fields |
 | --- | --- |
 | Save admin and operation settings | Service state, aggregation threshold |
-| Save public display settings | Public language, success message, per-ID/per-browser rolling 24-hour limit, count visibility, refresh interval, count color |
+| Save public display settings | Public language, success message, per-ID/per-browser rolling 24-hour limit, count visibility, refresh interval, symbol preset, unliked/liked symbol colors, count color, display preview |
 
 Provide one save button per group. Validate the full group before saving, preserve inputs on failure, and show saved/unsaved status. Saving one group must not commit edits in the other. The preview does not persist changes.
 
 Provide nine preset admin color themes: System, Light, Dark, Green, Blue, Orange, Red, Purple, and Monochrome. Color themes use a white base with the selected color as an accent on tabs, buttons, and charts. System follows the device light/dark preference. Apply and save the selection immediately from Settings. Keep this independent from the public Like count color.
 
 Disable refresh/color controls while counts are hidden, retaining their values. Refresh defaults to five seconds; zero disables polling. Offer Like limits 1–5 in ascending order, default 3. Generate success-message options from the selected public locale JSON.
+
+Choose the text symbol from fixed Heart, Diamond, Spade, Club, Star, and Music presets. The unliked color is either dark gray or light gray, while the liked color accepts `#RRGGBB`. The admin-only preview switches state and light/dark backgrounds without calling the public API or changing aggregates. Existing installations without this setting use Heart, `#666666`, and `#e53955`.
 
 Apply and save the admin language immediately when it is selected on the Dashboard. Grouped saves must prevent partial application across the existing configuration files; do not simply call each individual JSON writer in sequence.
 
@@ -58,3 +60,7 @@ Timezone changes are a separate operation inside Settings, with an explicit conf
 The production admin interface was connected on 2026-10-03. The static preview remains only as a design reference. The production screen now uses live database data, persistent settings, and authenticated sessions.
 
 Live Dashboard, Details, Settings, grouped saves, timezone changes, authentication, and explicit `data-url` registration are complete. The next stage is the web installer, live-server end-to-end verification, and final color adjustments. Decide the next commit and push after the installer work.
+
+## v1.0 Phase 2: origin management
+
+The Settings tab edits the primary origin, base domain, and primary subdomain policy. External origins support listing, adding, optional subdomains, and physical deletion. Deleting an origin does not delete Likes, aggregates, identifiers, or URL history.

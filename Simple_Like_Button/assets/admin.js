@@ -94,27 +94,76 @@ if (countVisibility) {
     updateCountDependents();
 }
 
-const countColor = document.getElementById('count-color');
-const countColorValue = document.querySelector('[data-count-color-value]');
-if (countColor && countColorValue) {
+function connectColorInputs(colorPicker, colorValue) {
+    if (!colorPicker || !colorValue) return;
     const validHexColor = /^#[0-9a-f]{6}$/i;
     const updateHexInput = () => {
-        countColorValue.value = countColor.value.toUpperCase();
+        colorValue.value = colorPicker.value.toUpperCase();
     };
-    countColor.addEventListener('input', updateHexInput);
-    countColorValue.addEventListener('input', () => {
-        const valid = validHexColor.test(countColorValue.value);
-        countColorValue.setCustomValidity(valid ? '' : countColorValue.dataset.invalidText || '');
+    colorPicker.addEventListener('input', updateHexInput);
+    colorValue.addEventListener('input', () => {
+        const valid = validHexColor.test(colorValue.value);
+        colorValue.setCustomValidity(valid ? '' : colorValue.dataset.invalidText || '');
         if (valid) {
-            countColor.value = countColorValue.value.toLowerCase();
+            colorPicker.value = colorValue.value.toLowerCase();
         }
     });
-    countColorValue.addEventListener('change', () => {
-        if (validHexColor.test(countColorValue.value)) {
-            countColorValue.value = countColorValue.value.toUpperCase();
+    colorValue.addEventListener('change', () => {
+        if (validHexColor.test(colorValue.value)) {
+            colorValue.value = colorValue.value.toUpperCase();
         }
     });
     updateHexInput();
+}
+
+const countColor = document.getElementById('count-color');
+const countColorValue = document.querySelector('[data-count-color-value]');
+const buttonLikedColor = document.querySelector('[data-button-liked-color]');
+const buttonLikedColorValue = document.querySelector('[data-button-liked-color-value]');
+connectColorInputs(countColor, countColorValue);
+connectColorInputs(buttonLikedColor, buttonLikedColorValue);
+
+const symbolPreset = document.querySelector('[data-button-symbol-preset]');
+const unlikedColorOptions = [...document.querySelectorAll('[data-button-unliked-color]')];
+const likePreviewButton = document.querySelector('[data-like-preview-button]');
+const likePreviewCount = document.querySelector('[data-like-preview-count]');
+const likePreviewStage = document.querySelector('[data-like-preview-stage]');
+const previewBackgroundButtons = [...document.querySelectorAll('[data-preview-background]')];
+if (symbolPreset && likePreviewButton && likePreviewCount && likePreviewStage) {
+    const symbols = {
+        heart: ['♡', '♥'],
+        diamond: ['♢', '♦'],
+        spade: ['♤', '♠'],
+        club: ['♧', '♣'],
+        star: ['☆', '★'],
+        music: ['♭', '♪'],
+    };
+    let liked = false;
+    const updateLikePreview = () => {
+        const selectedSymbols = symbols[symbolPreset.value] || symbols.heart;
+        const unlikedColor = unlikedColorOptions.find((option) => option.checked)?.value || '#666666';
+        const likedColor = buttonLikedColor?.value || '#e53955';
+        likePreviewButton.textContent = selectedSymbols[liked ? 1 : 0];
+        likePreviewButton.style.color = liked ? likedColor : unlikedColor;
+        likePreviewButton.setAttribute('aria-pressed', String(liked));
+        if (countColor) likePreviewCount.style.color = countColor.value;
+    };
+    symbolPreset.addEventListener('change', updateLikePreview);
+    unlikedColorOptions.forEach((option) => option.addEventListener('change', updateLikePreview));
+    [buttonLikedColor, buttonLikedColorValue, countColor, countColorValue].forEach((control) => {
+        control?.addEventListener('input', updateLikePreview);
+    });
+    likePreviewButton.addEventListener('click', () => {
+        liked = !liked;
+        updateLikePreview();
+    });
+    previewBackgroundButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            likePreviewStage.dataset.background = button.dataset.previewBackground || 'light';
+            previewBackgroundButtons.forEach((item) => item.classList.toggle('is-active', item === button));
+        });
+    });
+    updateLikePreview();
 }
 
 document.querySelectorAll('[data-settings-form]').forEach((form) => {
@@ -182,3 +231,55 @@ if (timezoneForm && timezoneDataNode) {
         }
     });
 }
+
+document.querySelectorAll('[data-origin-host-source]').forEach((originField) => {
+    const toggle = originField.closest('form')?.querySelector('[data-subdomain-toggle]');
+    if (!toggle) return;
+    const updateSubdomainToggle = () => {
+        let host = '';
+        try { host = new URL(originField.value).hostname.replace(/^\[|\]$/g, '').toLowerCase(); } catch (_) {}
+        const localOrIp = host === 'localhost' || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || host.includes(':');
+        if (localOrIp) toggle.checked = false;
+        toggle.disabled = localOrIp;
+    };
+    originField.addEventListener('input', updateSubdomainToggle);
+    updateSubdomainToggle();
+});
+
+const siteOriginField = document.querySelector('[data-site-origin]');
+const baseDomainField = document.querySelector('[data-base-domain]');
+if (siteOriginField && baseDomainField) {
+    let baseDomainWasEdited = baseDomainField.value.trim() !== '';
+    let automaticValue = '';
+
+    const getCertainBaseDomainCandidate = () => {
+        let host = '';
+        try {
+            host = new URL(siteOriginField.value).hostname.replace(/^\[|\]$/g, '').toLowerCase();
+        } catch (_) {
+            return '';
+        }
+        if (host.startsWith('www.') && host.length > 4) return host.slice(4);
+        return host;
+    };
+
+    const updateBaseDomainCandidate = () => {
+        if (baseDomainWasEdited && baseDomainField.value !== automaticValue) return;
+        const candidate = getCertainBaseDomainCandidate();
+        if (candidate === '') return;
+        baseDomainField.value = candidate;
+        automaticValue = candidate;
+    };
+
+    baseDomainField.addEventListener('input', () => {
+        if (baseDomainField.value !== automaticValue) baseDomainWasEdited = true;
+    });
+    siteOriginField.addEventListener('input', updateBaseDomainCandidate);
+    updateBaseDomainCandidate();
+}
+
+document.querySelectorAll('[data-origin-delete-form]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+        if (!window.confirm(form.dataset.confirmMessage || '')) event.preventDefault();
+    });
+});

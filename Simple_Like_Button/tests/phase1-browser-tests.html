@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja" data-pollyanna-test>
+<head>
+<meta charset="utf-8">
+<title>Pollyanna Phase 1 browser tests</title>
+<link rel="canonical" href="https://example.com/canonical/page.html?from=test#top">
+<script>
+window.phase1Requests = [];
+window.phase1StorageNormal = false;
+try {
+    localStorage.setItem('pollyanna.phase1.test', 'ok');
+    window.phase1StorageNormal = localStorage.getItem('pollyanna.phase1.test') === 'ok';
+    localStorage.removeItem('pollyanna.phase1.test');
+} catch (error) {}
+
+const originalGetItem = Storage.prototype.getItem;
+const originalSetItem = Storage.prototype.setItem;
+Storage.prototype.getItem = function () { throw new Error('test getItem failure'); };
+Storage.prototype.setItem = function () { throw new Error('test setItem failure'); };
+
+window.fetch = async (url, options) => {
+    const payload = JSON.parse(options.body);
+    const kind = String(url).includes('like.php') ? 'like' : 'state';
+    window.phase1Requests.push({kind, payload});
+    const widgetText = payload.identifier === 'different_作品'
+        ? {symbol_unliked: '😀', symbol_liked: '😃', symbol_unliked_color: 'red', symbol_liked_color: 'blue'}
+        : {symbol_unliked: '♢', symbol_liked: '♦', symbol_unliked_color: '#cccccc', symbol_liked_color: '#123456', count_color: '#654321'};
+    return new Response(JSON.stringify(kind === 'like'
+        ? {success: true, count: 11, success_message: 'OK', widget_text: widgetText}
+        : {success: true, liked: false, count: 10, count_refresh_interval: 0, widget_text: widgetText}
+    ), {status: kind === 'like' ? 201 : 200, headers: {'Content-Type': 'application/json'}});
+};
+</script>
+</head>
+<body>
+<div data-pollyanna-like data-identifier="shared_作品"></div>
+<div data-pollyanna-like></div>
+<div data-pollyanna-like data-identifier="shared_作品"></div>
+<div data-pollyanna-like data-identifier="different_作品"></div>
+<div data-pollyanna-like data-identifier="shared_作品"></div>
+<div data-pollyanna-like data-identifier=""></div>
+
+<pre id="result">RUNNING</pre>
+<script src="../assets/like.js"></script>
+<script>
+(async () => {
+    const results = [];
+    const check = (name, condition) => results.push({name, pass: Boolean(condition)});
+    const api = window.__pollyannaTest;
+    const repeat = (value, count) => Array(count).fill(value).join('');
+
+    check('localStorage normal access', window.phase1StorageNormal);
+    check('ASCII letters digits hyphen underscore', api.isIdentifierValid('Abc_01-test'));
+    check('Japanese', api.isIdentifierValid('桜並木_０１'));
+    check('fullwidth alphanumeric', api.isIdentifierValid('ＡＢＣ_１２３'));
+    check('Unicode punctuation', api.isIdentifierValid('【艦これ】桜の季節（改訂版）_001'));
+    check('leading and trailing hyphen', api.isIdentifierValid('-桜-'));
+    check('leading and trailing underscore', api.isIdentifierValid('_桜_'));
+    check('100 code points', api.isIdentifierValid(repeat('桜', 100)));
+    check('101 code points rejected', !api.isIdentifierValid(repeat('桜', 101)));
+    check('ASCII punctuation rejected', ['.', '/', ',', '#', '@', '=', '(', ')'].every(char => !api.isIdentifierValid(`a${char}b`)));
+    check('spaces rejected', !api.isIdentifierValid('a b') && !api.isIdentifierValid('a　b'));
+    check('line breaks rejected', !api.isIdentifierValid('a\nb'));
+    check('control rejected', !api.isIdentifierValid(`a${String.fromCharCode(1)}b`));
+
+    check('automatic normal HTML', api.generateIdentifier(1, '/novel/sakura01.html') === 'novel_sakura01_001');
+    check('automatic Japanese filename', api.generateIdentifier(1, '/novel/%E6%A1%9C%E3%81%AE%E5%AD%A3%E7%AF%80%EF%BC%88%E6%94%B9%E8%A8%82%E7%89%88%EF%BC%89.html') === 'novel_桜の季節（改訂版）_001');
+    check('automatic Unicode directory', api.generateIdentifier(1, '/%E4%BD%9C%E5%93%81%E9%9B%86%E3%80%902026%E3%80%91/%E6%A1%9C%E3%83%BB%E6%98%A5%EF%BC%88%E6%94%B9%E8%A8%82%E7%89%88%EF%BC%89.html') === '作品集【2026】_桜・春（改訂版）_001');
+    check('automatic forbidden ASCII punctuation', api.generateIdentifier(1, '/novel/sakura.ver2.html') === 'novel_sakura_ver2_001');
+    check('automatic space', api.generateIdentifier(1, '/novel/my story.html') === 'novel_my_story_001');
+    check('automatic plus', api.generateIdentifier(1, '/novel/sakura+spring.html') === 'novel_sakura_spring_001');
+    check('directory URL', api.generateIdentifier(1, '/gallery/') === 'gallery_001');
+    check('root URL', api.generateIdentifier(1, '/') === 'root_001');
+    check('sequence 999', api.generateIdentifier(999, '/novel/a.html') === 'novel_a_999');
+    check('sequence 1000', api.generateIdentifier(1000, '/novel/a.html') === 'novel_a_1000');
+    check('automatic over 100 rejected', api.generateIdentifier(1, `/novel/${repeat('桜', 100)}.html`) === null);
+    check('decode failure does not throw', typeof api.generateIdentifier(1, '/novel/%E0%A4%A.html') === 'string');
+
+    check('URL strips query and fragment', api.normalizePageUrl('https://example.com/work/index.html?a=1#chapter2') === 'https://example.com/work/index.html');
+    check('relative URL resolution', api.normalizePageUrl('../book.html?q=1#x', 'https://example.com/work/chapter/') === 'https://example.com/work/book.html');
+    check('invalid URL rejected', api.normalizePageUrl('not a valid url', 'invalid base') === null);
+
+    const detached = document.createElement('div');
+    detached.setAttribute('data-url', 'https://explicit.example/work?a=1#x');
+    check('data-url priority', api.resolvePageUrl(detached) === 'https://explicit.example/work');
+    detached.setAttribute('data-url', 'http://[invalid');
+    check('invalid data-url falls back canonical', api.resolvePageUrl(detached) === 'https://example.com/canonical/page.html');
+    detached.setAttribute('data-url', '');
+    check('empty data-url falls back canonical', api.resolvePageUrl(detached) === 'https://example.com/canonical/page.html');
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+    document.querySelector('link[rel~="canonical"]').remove();
+    const ogUrl = document.createElement('meta');
+    ogUrl.setAttribute('property', 'og:url');
+    ogUrl.setAttribute('content', '/og/page.html?q=1#top');
+    document.head.append(ogUrl);
+    check('relative og:url fallback', api.resolvePageUrl(detached) === `${location.origin}/og/page.html`);
+    ogUrl.setAttribute('content', 'http://[invalid');
+    check('location.href fallback', api.resolvePageUrl(detached) === location.href);
+    const stateRequests = window.phase1Requests.filter(item => item.kind === 'state');
+    check('same identifier shares initial request and empty attribute has no request', stateRequests.length === 3);
+    check('manual widget counts in DOM sequence', stateRequests.some(item => item.payload.identifier === 'tests_phase1-browser-tests_002'));
+    check('state never sends URL', stateRequests.every(item => !Object.hasOwn(item.payload, 'canonical_url')));
+    check('storage exceptions do not stop widgets', document.querySelectorAll('.pollyanna-like-button:not(:disabled)').length >= 5);
+    const sharedArea = document.querySelector('[data-identifier="shared_作品"]');
+    check('configured unliked symbol applied', sharedArea.querySelector('button').textContent === '♢');
+    check('configured unliked and liked colors applied', sharedArea.style.getPropertyValue('--pollyanna-like-unliked-color') === '#cccccc' && sharedArea.style.getPropertyValue('--pollyanna-like-liked-color') === '#123456');
+    check('configured count color applied', sharedArea.style.getPropertyValue('--pollyanna-like-count-color') === '#654321');
+    check('invalid runtime display settings fall back to heart', document.querySelector('[data-identifier="different_作品"] button').textContent === '♡');
+
+    document.querySelector('[data-identifier="shared_作品"] button').click();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const sharedButtons = [...document.querySelectorAll('[data-identifier="shared_作品"] button')];
+    const sharedCounts = [...document.querySelectorAll('[data-identifier="shared_作品"] .pollyanna-like-count')];
+    check('same identifier liked state synchronized', sharedButtons.length === 3 && sharedButtons.every(button => button.textContent === '♦' && button.getAttribute('aria-pressed') === 'true'));
+    check('same identifier count synchronized', sharedCounts.every(count => count.textContent === '11'));
+    check('different identifier unchanged', document.querySelector('[data-identifier="different_作品"] button').textContent === '♡');
+    const likeRequest = window.phase1Requests.find(item => item.kind === 'like');
+    check('like sends normalized URL', likeRequest && likeRequest.payload.canonical_url === 'https://example.com/canonical/page.html');
+
+    Storage.prototype.getItem = originalGetItem;
+    Storage.prototype.setItem = originalSetItem;
+    const failed = results.filter(result => !result.pass);
+    document.documentElement.dataset.testStatus = failed.length === 0 ? 'passed' : 'failed';
+    document.getElementById('result').textContent = JSON.stringify({passed: results.length - failed.length, failed}, null, 2);
+})();
+</script>
+</body>
+</html>

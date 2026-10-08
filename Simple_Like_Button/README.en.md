@@ -18,7 +18,7 @@ The previous PHP beta is preserved under `legacy/`. See [docs/LegacyMigration.en
 - Japanese and English widget text, with selectable Like success messages
 - Restoring the same browser's Like state for each identifier
 - A rolling limit of 1–5 Likes per identifier and anonymous browser in 24 hours (default: 3)
-- Public Like count visibility, color, and refresh interval (5 seconds by default; 0 disables refresh)
+- Six text-symbol presets, unliked/liked symbol colors, and public Like count visibility, color, and refresh interval (5 seconds by default; 0 disables refresh)
 - A configurable automatic aggregation threshold (default: 1,000 events)
 - Daily, monthly, yearly, and time-of-day aggregates
 - CSV archival and aggregate reset when changing the timezone
@@ -53,9 +53,9 @@ For a manual installation, create `config/config.php` from `config/config.exampl
 <script defer src="/Simple_Like_Button/assets/like.js"></script>
 ```
 
-Use a stable, unique value per work in `data-identifier`. Values cannot be empty or contain line breaks, and are limited to 50 characters. Prefer an internal ID over a title or URL. Pages for the same work should use the same identifier to share its count and rate limit. When updating the CSS, change `v=1` to refresh browser caches.
+`data-identifier` identifies the target being counted. Reusing the same value for the same target shares its count, liked state, and rate limit. Manual values are limited to 100 Unicode code points and cannot contain whitespace or ASCII symbols except `-` and `_`. Omitting the attribute generates an identifier from the current path and DOM position; an empty attribute is an error. When updating the CSS, change `v=1` to refresh browser caches.
 
-Set `data-url` explicitly to the canonical URL of the page containing the work. It is stored as the installation URL shown in the admin interface. One identifier can have multiple URLs. The current browsing URL is never collected automatically.
+The installation URL is selected from `data-url`, canonical, `og:url`, and the current page URL in that order. Its query and fragment are removed, and it is saved only after a Like succeeds. One identifier can have multiple URLs.
 
 The browser identifier is stored in LocalStorage; the database stores only its HMAC, generated with the installation secret. Raw IP addresses are not stored. Clearing LocalStorage makes that browser appear as a new anonymous visitor.
 

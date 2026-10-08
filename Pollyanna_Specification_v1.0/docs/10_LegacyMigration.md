@@ -17,8 +17,8 @@ this directory takes precedence when behavior or data design differs.
 
 ## Gaps to resolve before reusing beta code
 
-- Beta uses `page_id` and allows 255 characters; the current policy uses an
-  opaque `identifier` limited to 50 characters.
+- Beta uses `page_id` and allows 255 characters; the v1.0 Phase 1 policy uses
+  an `identifier` limited to 100 Unicode code points.
 - Beta hashes the raw IP with plain SHA-256. The current design requires an
   installation-specific HMAC key and does not retain raw IP addresses.
 - Beta rate-limits globally by IP, with no client hash, and does not define
