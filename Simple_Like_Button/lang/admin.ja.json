@@ -165,7 +165,7 @@
     "stored_granularity_note": "整理済みの古いデータは、保存されている月別・年別の粒度で表示します。",
     "settings_intro": "管理・運用とサイト表示を、それぞれまとめて保存します。",
     "admin_operation_settings": "管理・運用設定",
-    "public_display_settings": "サイト表示設定",
+    "public_display_settings": "公開表示設定",
     "save_admin_operation": "管理・運用設定を保存",
     "save_public_display": "サイト表示設定を保存",
     "admin_operation_saved": "管理・運用設定を保存しました。",

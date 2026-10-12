@@ -31,36 +31,48 @@ nav{align-items:flex-end;gap:7px;padding-inline:12px;border-bottom:2px solid #ae
 .auth-form .password-toggle{display:flex;align-items:center;gap:8px;width:max-content;font-weight:500;cursor:pointer}.auth-form .password-toggle input{display:inline-block;width:auto;margin:0;padding:0}
 
 /* Settings page layout and readable helper text. */
-#panel-settings .settings-heading{display:block}
-#panel-settings .settings-heading h1{margin-bottom:8px}
-#panel-settings .settings-heading p{margin-bottom:0}
-#panel-settings .setting-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
-#panel-settings .settings-left-column{display:flex;min-width:0;flex-direction:column;gap:20px}
-#panel-settings .settings-left-column>.settings-card:last-child{flex:1}
-#panel-settings .settings-card{align-self:stretch}
-#panel-settings .settings-card h2{font-size:16px}
-#panel-settings .field label{font-size:14px;font-weight:650}
-#panel-settings .field-help,
-#panel-settings .origin-description,
-#panel-settings .check-label,
-#panel-settings .save-status,
-#panel-settings .timezone-note{font-size:14px}
-#panel-settings .field input,
-#panel-settings .field select,
-#panel-settings .timezone-controls select,
-#panel-settings button{font-size:15px}
-#panel-settings .timezone-heading-row{margin-bottom:12px}
-#panel-settings .timezone-heading-row h2{margin:0}
-#panel-settings .timezone-note{margin:7px 0 0;line-height:1.55}
-#panel-settings .timezone-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#panel-settings .timezone-controls select{min-width:0;flex:1 1 210px;margin:0;padding:8px 32px 8px 10px;border:1px solid #c9d0c4;border-radius:5px}
-#panel-settings .timezone-controls button{flex:none;white-space:nowrap}
-#panel-settings .timezone-result:empty{display:none}
+.settings-panel{min-width:0}
+.settings-panel .settings-card{width:100%;min-width:0}
+.settings-panel form{width:100%;max-width:480px;min-width:0}
+.settings-panel .field{min-width:0}
+.settings-panel input,.settings-panel select{max-width:100%;min-width:0}
+.settings-panel .count-color-control{flex-wrap:wrap}
+.settings-panel .symbol-color-options label{min-width:0;overflow-wrap:anywhere}
+.settings-panel .like-preview{width:100%;max-width:480px;min-width:0}
+.settings-panel .like-preview-heading,.settings-panel .preview-background-options{flex-wrap:wrap}
+.settings-panel .origin-settings table{min-width:0;table-layout:fixed}
+.settings-panel .origin-settings th,.settings-panel .origin-settings td{padding-inline:8px;overflow-wrap:anywhere}
+.settings-panel .origin-settings button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.settings-panel .settings-heading{display:block}
+.settings-panel .settings-heading h1{margin-bottom:8px}
+.settings-panel .settings-heading p{margin-bottom:0}
+.settings-panel .setting-grid{grid-template-columns:1fr;align-items:stretch}
+.settings-panel .settings-left-column{display:flex;min-width:0;flex-direction:column;gap:20px}
+.settings-panel .settings-left-column>.settings-card:last-child{flex:1}
+.settings-panel .settings-card{align-self:stretch}
+.settings-panel .settings-card h2{font-size:16px}
+.settings-panel .field label{font-size:14px;font-weight:650}
+.settings-panel .field-help,
+.settings-panel .origin-description,
+.settings-panel .check-label,
+.settings-panel .save-status,
+.settings-panel .timezone-note{font-size:14px}
+.settings-panel .field input,
+.settings-panel .field select,
+.settings-panel .timezone-controls select,
+.settings-panel button{font-size:15px}
+.settings-panel .timezone-heading-row{margin-bottom:12px}
+.settings-panel .timezone-heading-row h2{margin:0}
+.settings-panel .timezone-note{margin:7px 0 0;line-height:1.55}
+.settings-panel .timezone-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.settings-panel .timezone-controls select{min-width:0;flex:1 1 210px;margin:0;padding:8px 32px 8px 10px;border:1px solid #c9d0c4;border-radius:5px}
+.settings-panel .timezone-controls button{flex:none;white-space:nowrap}
+.settings-panel .timezone-result:empty{display:none}
 @media(max-width:760px){
-    #panel-settings .setting-grid{grid-template-columns:1fr}
-    #panel-settings .settings-left-column{height:auto}
-    #panel-settings .settings-left-column>.settings-card:last-child{flex:none}
-    #panel-settings .settings-card{height:auto}
+    .settings-panel .setting-grid{grid-template-columns:1fr}
+    .settings-panel .settings-left-column{height:auto}
+    .settings-panel .settings-left-column>.settings-card:last-child{flex:none}
+    .settings-panel .settings-card{height:auto}
 }
 .origin-advanced{margin:18px 0;padding:0 14px;border:1px solid var(--theme-line,var(--line));border-radius:6px;background:var(--theme-input,#fff)}
 .origin-advanced summary{margin:0 -14px;padding:12px 14px;color:var(--accent);font-size:14px;font-weight:650;cursor:pointer}
