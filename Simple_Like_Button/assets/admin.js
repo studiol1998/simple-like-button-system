@@ -1,5 +1,18 @@
 'use strict';
 
+const accessDetection = document.getElementById('access-enabled');
+const accessAutoBlock = document.getElementById('access-auto_block');
+if (accessDetection && accessAutoBlock) {
+    const synchronizeAccessSwitches = () => {
+        const disabled = accessDetection.value !== 'on';
+        if (disabled) accessAutoBlock.value = 'off';
+        accessAutoBlock.disabled = disabled;
+    };
+    accessDetection.addEventListener('change', synchronizeAccessSwitches);
+    synchronizeAccessSwitches();
+}
+
+
 document.querySelectorAll('[data-password-toggle]').forEach((toggle) => {
     toggle.addEventListener('change', () => {
         const form = toggle.closest('form');
@@ -61,6 +74,23 @@ if (themeSelect) {
 const detailMonth = document.querySelector('[data-detail-month]');
 if (detailMonth) {
     detailMonth.addEventListener('change', () => detailMonth.form.submit());
+}
+
+const accessHistorySize = document.querySelector('[data-access-history-size]');
+if (accessHistorySize) {
+    accessHistorySize.addEventListener('change', () => {
+        const choices = ['20', '50', '80', '100'];
+        let size = choices.includes(accessHistorySize.value) ? accessHistorySize.value : '20';
+        try {
+            document.cookie = `pollyanna_access_history_size=${size}; Path=${accessHistorySize.dataset.cookiePath}; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+            if (!document.cookie.split(';').some(item => item.trim() === `pollyanna_access_history_size=${size}`)) size = '20';
+        } catch (_) { size = '20'; }
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'access-protection');
+        url.searchParams.set('access_size', size);
+        url.searchParams.set('access_page', '1');
+        window.location.assign(url);
+    });
 }
 
 const messageCatalogNode = document.getElementById('widget-message-catalog');

@@ -34,7 +34,7 @@ final class AccessProtectionService
                 throw new InvalidArgumentException('Invalid access detection rule.');
             }
         }
-        return ['enabled' => $settings['enabled'], 'auto_block' => $settings['auto_block'],
+        return ['enabled' => $settings['enabled'], 'auto_block' => $settings['enabled'] && $settings['auto_block'],
             'state' => ['window' => $settings['state']['window'], 'threshold' => $settings['state']['threshold']],
             'like' => ['window' => $settings['like']['window'], 'threshold' => $settings['like']['threshold']]];
     }
@@ -111,7 +111,7 @@ final class AccessProtectionService
         return $this->locked(function (int $now) use ($api, $hash, $settings): int {
             $this->prune($now, $settings);
             $block = $this->execute('SELECT expires_at FROM pollyanna_access_blocks WHERE ip_hash = ?', [$hash])->fetchColumn();
-            if ($block !== false && $settings['auto_block']) return max(1, strtotime((string) $block . ' UTC') - $now);
+            if ($block !== false) return max(1, strtotime((string) $block . ' UTC') - $now);
             if (!$settings['enabled']) return 0;
             $date = gmdate('Y-m-d H:i:s', $now);
             $this->execute('INSERT INTO pollyanna_access_buckets (ip_hash, api, bucket_at, request_count, reported) VALUES (?, ?, ?, 1, 0) ON DUPLICATE KEY UPDATE request_count = LEAST(request_count + 1, 1000000000)', [$hash, $api, $date]);
@@ -149,17 +149,19 @@ final class AccessProtectionService
         $this->locked(function (int $now) use ($settings): void { $this->prune($now, $settings); });
     }
 
-    public function overview(array $settings, int $page = 1): array
+    public function overview(array $settings, int $page = 1, int $pageSize = 20): array
     {
         $settings = self::validate($settings);
-        return $this->locked(function (int $now) use ($settings, $page): array {
+        $pageSize = in_array($pageSize, [20, 50, 80, 100], true) ? $pageSize : 20;
+        return $this->locked(function (int $now) use ($settings, $page, $pageSize): array {
             $this->prune($now, $settings);
             $blocks = $this->execute('SELECT b.id, b.started_at, b.expires_at, h.api, h.request_count, h.window_seconds FROM pollyanna_access_blocks b JOIN pollyanna_access_history h ON h.id = b.history_id ORDER BY b.id DESC')->fetchAll(PDO::FETCH_ASSOC);
             $total = (int) $this->execute('SELECT COUNT(*) FROM pollyanna_access_history')->fetchColumn();
-            $page = max(1, min($page, max(1, (int) ceil($total / 50))));
-            $history = $this->execute('SELECT id, detected_at, api, window_seconds, request_count, blocked, block_started_at, released_at, release_method FROM pollyanna_access_history ORDER BY id DESC LIMIT 50 OFFSET ' . (($page - 1) * 50))->fetchAll(PDO::FETCH_ASSOC);
+            $pages = max(1, (int) ceil($total / $pageSize));
+            $page = max(1, min($page, $pages));
+            $history = $this->execute('SELECT id, detected_at, api, window_seconds, request_count, blocked, block_started_at, released_at, release_method FROM pollyanna_access_history ORDER BY id DESC LIMIT ' . $pageSize . ' OFFSET ' . (($page - 1) * $pageSize))->fetchAll(PDO::FETCH_ASSOC);
             $recent = (int) $this->execute('SELECT COUNT(*) FROM pollyanna_access_history WHERE (api = ? AND detected_at > ?) OR (api = ? AND detected_at > ?)', ['state', gmdate('Y-m-d H:i:s', $now - $settings['state']['window']), 'like', gmdate('Y-m-d H:i:s', $now - $settings['like']['window'])])->fetchColumn();
-            return ['blocks' => $blocks, 'history' => $history, 'total' => $total, 'page' => $page, 'recent' => $recent];
+            return ['blocks' => $blocks, 'history' => $history, 'total' => $total, 'page' => $page, 'recent' => $recent, 'page_size' => $pageSize, 'pages' => $pages];
         });
     }
 }
@@ -167,7 +169,8 @@ final class AccessProtectionService
 function pollyanna_access_settings(): array
 {
     $path = dirname(__DIR__) . '/config/access_protection_settings.json';
-    if (!is_file($path)) return AccessProtectionService::defaults();
+    // Only new installers supply this config entry. Legacy installations keep their fallback.
+    if (!is_file($path)) return AccessProtectionService::validate(pollyanna_config()['access_protection'] ?? AccessProtectionService::defaults());
     $settings = json_decode((string) file_get_contents($path), true, 8, JSON_THROW_ON_ERROR);
     if (!is_array($settings)) throw new RuntimeException('Invalid access protection settings.');
     return AccessProtectionService::validate($settings);

@@ -215,6 +215,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                         'threshold' => filter_var($_POST['access_' . $accessApi . '_threshold'] ?? null, FILTER_VALIDATE_INT)];
                 }
                 foreach (['access_enabled', 'access_auto_block'] as $switch) {
+                    if ($switch === 'access_auto_block' && !$requestedAccess['enabled'] && !isset($_POST[$switch])) continue;
                     if (!in_array($_POST[$switch] ?? null, ['on', 'off'], true)) throw new InvalidArgumentException('Invalid switch.');
                 }
                 $accessSettings = AccessProtectionService::validate($requestedAccess);
@@ -228,7 +229,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
                 $_SESSION['pollyanna_settings_result'] = $language === 'ja' ? 'ブロックを解除しました。' : 'Block released.';
             }
-            header('Location: ?tab=admin-operation'); exit;
+            header('Location: ?tab=access-protection'); exit;
         } catch (Throwable) {
             http_response_code(422);
             $settingsError = $language === 'ja' ? '保存・解除に失敗しました。入力値、DB更新、ブロックの有効期限を確認してください。' : 'Save or release failed. Check values, migration and block expiry.';
@@ -415,6 +416,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         http_response_code(400);
         $settingsError = (string) $ui['settings_save_error'];
     }
+}
+
+function admin_access_datetime(?string $utc, string $timezone): string
+{
+    if ($utc === null) return '—';
+    return (new DateTimeImmutable($utc, new DateTimeZone('UTC')))
+        ->setTimezone(new DateTimeZone($timezone))->format('Y-m-d H:i:s T');
 }
 
 function admin_h(string $value): string
@@ -687,21 +695,23 @@ $allowedOrigins = [];
 try { $allowedOrigins = pollyanna_allowed_origins(); } catch (Throwable $error) { error_log('Pollyanna allowed origin list failed: ' . $error->getMessage()); }
 $activeTab = $_GET['tab'] ?? 'dashboard';
 if ($activeTab === 'settings') $activeTab = 'admin-operation';
-if (!is_string($activeTab) || !in_array($activeTab, ['dashboard', 'details', 'admin-operation', 'public-display'], true)) $activeTab = 'dashboard';
+if (!is_string($activeTab) || !in_array($activeTab, ['dashboard', 'details', 'admin-operation', 'public-display', 'access-protection'], true)) $activeTab = 'dashboard';
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && $settingsError !== '') {
-    $activeTab = ($action ?? '') === 'save_public_display' ? 'public-display' : 'admin-operation';
+    $activeTab = in_array($action ?? '', ['save_access_protection', 'release_access_block'], true) ? 'access-protection' : (($action ?? '') === 'save_public_display' ? 'public-display' : 'admin-operation');
 }
 $retrievedAt = (new DateTimeImmutable('now', new DateTimeZone($settings['timezone'])))->format('Y-m-d H:i');
 $dailyPeriod = $language === 'ja' ? $dailyStart->format('Y/n/j') . '〜' . $today->format('n/j') : $dailyStart->format('M j, Y') . ' – ' . $today->format('M j');
 $monthlyPeriod = $language === 'ja' ? $monthStart->format('Y/n') . '〜' . $today->format('Y/n') : $monthStart->format('M Y') . ' – ' . $today->format('M Y');
 $hourlyPeriod = $language === 'ja' ? $today->format('Y年n月') : $today->format('F Y');
 $timezoneChangeState = pollyanna_timezone_change_state();
-$accessOverview = ['blocks' => [], 'history' => [], 'total' => 0, 'page' => 1, 'recent' => 0];
+$accessPageSize = filter_var($_GET['access_size'] ?? $_COOKIE['pollyanna_access_history_size'] ?? 20, FILTER_VALIDATE_INT);
+$accessPageSize = in_array($accessPageSize, [20, 50, 80, 100], true) ? $accessPageSize : 20;
+$accessOverview = ['blocks' => [], 'history' => [], 'total' => 0, 'page' => 1, 'recent' => 0, 'page_size' => $accessPageSize, 'pages' => 1];
 try {
     $accessService = new AccessProtectionService(pollyanna_pdo());
     if (!$accessService->available()) throw new RuntimeException('Migration required.');
     $historyPage = filter_var($_GET['access_page'] ?? 1, FILTER_VALIDATE_INT);
-    $accessOverview = $accessService->overview($accessSettings, is_int($historyPage) ? $historyPage : 1);
+    $accessOverview = $accessService->overview($accessSettings, is_int($historyPage) ? $historyPage : 1, $accessPageSize);
 } catch (Throwable) {
     $accessError = $language === 'ja' ? '集中アクセス検知を利用できません。DB接続と upgrade-access-protection.sql の適用を確認してください。' : 'Access protection unavailable. Check the database and apply upgrade-access-protection.sql.';
 }
@@ -722,7 +732,7 @@ try {
     </div>
     <div class="notice"><?= admin_h($ui['local_only']) ?></div>
     <nav role="tablist" aria-label="<?= admin_h($ui['page_title']) ?>">
-        <?php foreach (['dashboard' => 'dashboard', 'details' => 'details', 'admin-operation' => 'admin_operation_settings', 'public-display' => 'public_display_settings'] as $tab => $labelKey): ?><button id="tab-<?= $tab ?>" type="button" role="tab" data-admin-tab="<?= $tab ?>" aria-controls="panel-<?= $tab ?>" aria-selected="<?= $activeTab === $tab ? 'true' : 'false' ?>" tabindex="<?= $activeTab === $tab ? '0' : '-1' ?>"><?= admin_h($ui[$labelKey]) ?></button><?php endforeach ?>
+        <?php foreach (['dashboard' => 'dashboard', 'details' => 'details', 'admin-operation' => 'admin_operation_settings', 'public-display' => 'public_display_settings', 'access-protection' => 'access_protection'] as $tab => $labelKey): ?><button id="tab-<?= $tab ?>" type="button" role="tab" data-admin-tab="<?= $tab ?>" aria-controls="panel-<?= $tab ?>" aria-selected="<?= $activeTab === $tab ? 'true' : 'false' ?>" tabindex="<?= $activeTab === $tab ? '0' : '-1' ?>"><?= admin_h($ui[$labelKey]) ?></button><?php endforeach ?>
     </nav>
 </header>
 <main>
@@ -790,54 +800,7 @@ try {
             </form>
             </section>
         </section>
-        <section class="panel settings-card access-protection-card">
-            <h2><?= admin_h($language === 'ja' ? '集中アクセス検知' : 'Access concentration detection') ?></h2>
-            <p class="field-help"><?= admin_h($language === 'ja' ? '検知と自動ブロックは別設定です。共有回線・プロキシでは複数利用者が同じ接続元として計測されます。自動ブロックOFFでは既存ブロックも適用しません。日時はUTCです。' : 'Detection and automatic blocking are separate. Shared connections and proxies can combine visitors. Automatic blocking OFF also bypasses existing blocks. Times are UTC.') ?></p>
-            <?php if ($accessError !== ''): ?><p class="notice settings-error" role="alert"><?= admin_h($accessError) ?></p><?php endif ?>
-            <form method="post" data-settings-form="access-protection" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>">
-                <input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>">
-                <input type="hidden" name="action" value="save_access_protection">
-                <?php foreach (['enabled' => ($language === 'ja' ? '集中アクセス検知' : 'Detection'), 'auto_block' => ($language === 'ja' ? '自動ブロック（48時間）' : 'Automatic blocking (48 hours)')] as $key => $label): ?>
-                <div class="field"><label for="access-<?= $key ?>"><?= admin_h($label) ?></label><select id="access-<?= $key ?>" name="access_<?= $key ?>"><option value="on" <?= $accessSettings[$key] ? 'selected' : '' ?>>ON</option><option value="off" <?= !$accessSettings[$key] ? 'selected' : '' ?>>OFF</option></select></div>
-                <?php endforeach ?>
-                <?php foreach (['state', 'like'] as $accessApi): ?>
-                <fieldset class="field access-rule"><legend><?= $accessApi ?>.php</legend>
-                    <label for="access-<?= $accessApi ?>-window"><?= admin_h($language === 'ja' ? '判定期間（秒、10〜3600）' : 'Window (seconds, 10–3600)') ?></label>
-                    <input id="access-<?= $accessApi ?>-window" name="access_<?= $accessApi ?>_window" type="number" min="10" max="3600" required value="<?= (int) $accessSettings[$accessApi]['window'] ?>">
-                    <label for="access-<?= $accessApi ?>-threshold"><?= admin_h($language === 'ja' ? 'しきい値（回、1〜1000000）' : 'Threshold (requests, 1–1000000)') ?></label>
-                    <input id="access-<?= $accessApi ?>-threshold" name="access_<?= $accessApi ?>_threshold" type="number" min="1" max="1000000" required value="<?= (int) $accessSettings[$accessApi]['threshold'] ?>">
-                </fieldset>
-                <?php endforeach ?>
-                <p class="field-help"><?= admin_h($language === 'ja' ? 'しきい値を超えたリクエストで検知します。まず検知のみで履歴を確認してください。' : 'Detection occurs above the threshold. Review detection-only history before enabling blocks.') ?></p>
-                <div class="save-row"><button class="primary" type="submit" <?= $accessError !== '' ? 'disabled' : '' ?>><?= admin_h($language === 'ja' ? '集中アクセス検知設定を保存' : 'Save access protection') ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
-            </form>
-            <?php if ($accessError === ''): ?>
-            <?php if ($accessOverview['recent'] === 0 && $accessOverview['blocks'] === []): ?><p class="result"><?= admin_h($language === 'ja' ? '直近の判定期間：現在の集中アクセスはありません。' : 'Recent detection window: no concentrated access detected.') ?></p><?php endif ?>
-            <h3><?= admin_h($language === 'ja' ? '現在のブロック件数：' : 'Current blocks: ') ?><?= count($accessOverview['blocks']) ?></h3>
-            <?php foreach ($accessOverview['blocks'] as $block): ?>
-            <div class="access-block">
-                <p><?= admin_h(sprintf($language === 'ja' ? '管理ID %d／検知日時 %s／%s.php／%d回・%d秒／解除予定 %s' : 'ID %d / Detected %s / %s.php / %d requests in %d seconds / Expires %s', (int) $block['id'], $block['started_at'], $block['api'], (int) $block['request_count'], (int) $block['window_seconds'], $block['expires_at'])) ?></p>
-                <form method="post" data-access-release-form data-confirm-message="<?= admin_h($language === 'ja' ? 'このブロックを解除しますか？判定カウンターもリセットします。' : 'Release this block and reset its detection counters?') ?>">
-                    <input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="release_access_block"><input type="hidden" name="access_block_id" value="<?= (int) $block['id'] ?>">
-                    <button class="primary" type="submit"><?= admin_h($language === 'ja' ? '手動解除' : 'Release block') ?></button>
-                </form>
-            </div>
-            <?php endforeach ?>
-            <h3><?= admin_h($language === 'ja' ? '過去60日間の異常検知履歴' : 'Detection history (last 60 days)') ?></h3>
-            <?php if ($accessOverview['history'] === []): ?><p class="muted"><?= admin_h($language === 'ja' ? '履歴はありません。' : 'No history.') ?></p><?php endif ?>
-            <?php foreach ($accessOverview['history'] as $entry): ?>
-            <div class="access-history">
-                <p><?= admin_h(sprintf('%s / %s.php / %d / %ds', $entry['detected_at'], $entry['api'], (int) $entry['request_count'], (int) $entry['window_seconds'])) ?></p>
-                <p class="muted"><?= admin_h(($language === 'ja' ? 'ブロック開始：' : 'Block started: ') . ($entry['block_started_at'] ?? '—') . ' / ' . ($language === 'ja' ? '解除：' : 'Released: ') . ($entry['released_at'] ?? '—') . ' / ' . ($entry['release_method'] === 'manual' ? ($language === 'ja' ? '手動' : 'Manual') : ($entry['release_method'] === 'automatic' ? ($language === 'ja' ? '自動' : 'Automatic') : ((int) $entry['blocked'] === 1 ? ($language === 'ja' ? '未解除' : 'Not released') : ($language === 'ja' ? '検知のみ' : 'Detection only'))))) ?></p>
-            </div>
-            <?php endforeach ?>
-            <nav class="pagination" aria-label="<?= admin_h($language === 'ja' ? '検知履歴' : 'Detection history') ?>">
-                <?php if ($accessOverview['page'] > 1): ?><a href="?tab=admin-operation&amp;access_page=<?= $accessOverview['page'] - 1 ?>"><?= admin_h($ui['previous_page']) ?></a><?php endif ?>
-                <span><?= admin_h(sprintf($ui['page_status'], $accessOverview['page'], max(1, (int) ceil($accessOverview['total'] / 50)))) ?></span>
-                <?php if ($accessOverview['page'] * 50 < $accessOverview['total']): ?><a href="?tab=admin-operation&amp;access_page=<?= $accessOverview['page'] + 1 ?>"><?= admin_h($ui['next_page']) ?></a><?php endif ?>
-            </nav>
-            <?php endif ?>
-        </section>
+
     </section>
     <section id="panel-public-display" class="settings-panel" role="tabpanel" aria-labelledby="tab-public-display" data-admin-panel="public-display" <?= $activeTab === 'public-display' ? '' : 'hidden' ?>>
         <div class="heading settings-heading"><h1><?= admin_h($ui['public_display_settings']) ?></h1></div>
@@ -859,6 +822,79 @@ try {
                     <div class="save-row"><button class="primary" type="submit"><?= admin_h($ui['save_public_display']) ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
                 </form>
             </section>
+    </section>
+    <section id="panel-access-protection" class="settings-panel" role="tabpanel" aria-labelledby="tab-access-protection" data-admin-panel="access-protection" <?= $activeTab === 'access-protection' ? '' : 'hidden' ?>>
+        <div class="heading settings-heading"><h1><?= admin_h($ui['access_protection']) ?></h1></div>
+        <?php if ($settingsResult !== ''): ?><div class="notice settings-notice" role="status"><?= admin_h($settingsResult) ?></div><?php endif ?>
+        <?php if ($settingsError !== ''): ?><div class="notice settings-error" role="alert"><?= admin_h($settingsError) ?></div><?php endif ?>
+        <section class="panel settings-card access-protection-card access-monitoring">
+            <h2><?= admin_h($language === 'ja' ? '監視状況' : 'Monitoring') ?></h2>
+            <p class="field-help"><?= admin_h(sprintf($ui['access_display_timezone'], $settings['timezone'], (new DateTimeImmutable('now', new DateTimeZone($settings['timezone'])))->format('T'))) ?></p>
+            <?php if ($accessError !== ''): ?><p class="notice settings-error" role="alert"><?= admin_h($accessError) ?></p><?php endif ?>
+            <?php if ($accessError === ''): ?>
+            <?php if ($accessOverview['recent'] === 0 && $accessOverview['blocks'] === []): ?><p class="result"><?= admin_h($language === 'ja' ? '直近の判定期間：現在の集中アクセスはありません。' : 'Recent detection window: no concentrated access detected.') ?></p><?php endif ?>
+            <h3><?= admin_h($language === 'ja' ? '現在のブロック件数：' : 'Current blocks: ') ?><?= count($accessOverview['blocks']) ?></h3>
+            <p class="field-help"><?= admin_h($ui['access_existing_blocks_help']) ?></p>
+            <?php foreach ($accessOverview['blocks'] as $block): ?>
+            <div class="access-block">
+                <p><?= admin_h(sprintf($language === 'ja' ? '管理ID %d／検知日時 %s／%s.php／%d回・%d秒／解除予定 %s' : 'ID %d / Detected %s / %s.php / %d requests in %d seconds / Expires %s', (int) $block['id'], admin_access_datetime($block['started_at'], $settings['timezone']), $block['api'], (int) $block['request_count'], (int) $block['window_seconds'], admin_access_datetime($block['expires_at'], $settings['timezone']))) ?></p>
+                <form method="post" data-access-release-form data-confirm-message="<?= admin_h($language === 'ja' ? 'このブロックを解除しますか？判定カウンターもリセットします。' : 'Release this block and reset its detection counters?') ?>">
+                    <input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="release_access_block"><input type="hidden" name="access_block_id" value="<?= (int) $block['id'] ?>">
+                    <button class="primary" type="submit"><?= admin_h($language === 'ja' ? '手動解除' : 'Release block') ?></button>
+                </form>
+            </div>
+            <?php endforeach ?>
+            <div class="access-history-heading">
+                <h3><?= admin_h($language === 'ja' ? '過去60日間の異常検知履歴' : 'Detection history (last 60 days)') ?></h3>
+                <form method="get" class="access-history-size-form">
+                    <input type="hidden" name="tab" value="access-protection"><input type="hidden" name="access_page" value="1">
+                    <label for="access-history-size"><?= admin_h($language === 'ja' ? '表示件数' : 'Per page') ?></label>
+                    <select id="access-history-size" name="access_size" data-access-history-size data-cookie-path="<?= admin_h(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/admin/index.php'))) . '/') ?>">
+                    <?php foreach ([20, 50, 80, 100] as $size): ?><option value="<?= $size ?>" <?= $accessPageSize === $size ? 'selected' : '' ?>><?= $size ?></option><?php endforeach ?>
+                    </select>
+                    <noscript><button type="submit"><?= admin_h($language === 'ja' ? '表示' : 'Apply') ?></button></noscript>
+                </form>
+            </div>
+            <?php if ($accessOverview['history'] === []): ?><p class="muted"><?= admin_h($language === 'ja' ? '履歴はありません。' : 'No history.') ?></p><?php endif ?>
+            <?php foreach ($accessOverview['history'] as $entry): ?>
+            <div class="access-history">
+                <p><?= admin_h(sprintf('%s / %s.php / %d / %ds', admin_access_datetime($entry['detected_at'], $settings['timezone']), $entry['api'], (int) $entry['request_count'], (int) $entry['window_seconds'])) ?></p>
+                <p class="muted"><?= admin_h(($language === 'ja' ? 'ブロック開始：' : 'Block started: ') . admin_access_datetime($entry['block_started_at'], $settings['timezone']) . ' / ' . ($language === 'ja' ? '解除：' : 'Released: ') . admin_access_datetime($entry['released_at'], $settings['timezone']) . ' / ' . ($entry['release_method'] === 'manual' ? ($language === 'ja' ? '手動' : 'Manual') : ($entry['release_method'] === 'automatic' ? ($language === 'ja' ? '自動' : 'Automatic') : ((int) $entry['blocked'] === 1 ? ($language === 'ja' ? '未解除' : 'Not released') : ($language === 'ja' ? '検知のみ' : 'Detection only'))))) ?></p>
+            </div>
+            <?php endforeach ?>
+            <?php if ($accessOverview['pages'] > 1): ?><nav class="pagination access-history-pagination" aria-label="<?= admin_h($language === 'ja' ? '検知履歴' : 'Detection history') ?>">
+                <?php if ($accessOverview['page'] > 1): ?><a href="?tab=access-protection&amp;access_size=<?= $accessPageSize ?>&amp;access_page=<?= $accessOverview['page'] - 1 ?>"><?= admin_h($ui['previous_page']) ?></a><?php endif ?>
+                <span><?= admin_h(sprintf($ui['page_status'], $accessOverview['page'], $accessOverview['pages'])) ?></span>
+                <?php if ($accessOverview['page'] < $accessOverview['pages']): ?><a href="?tab=access-protection&amp;access_size=<?= $accessPageSize ?>&amp;access_page=<?= $accessOverview['page'] + 1 ?>"><?= admin_h($ui['next_page']) ?></a><?php endif ?>
+            </nav><?php endif ?>
+            <?php endif ?>
+        </section>
+        <section class="panel settings-card access-protection-card access-settings">
+            <h2><?= admin_h($language === 'ja' ? '集中アクセス検知の設定' : 'Access detection settings') ?></h2>
+            <p class="field-help"><?= admin_h($ui['access_shared_connection_help']) ?></p>
+            <?php if ($accessError !== ''): ?><p class="notice settings-error" role="alert"><?= admin_h($accessError) ?></p><?php endif ?>
+            <form method="post" data-settings-form="access-protection" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>">
+                <input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>">
+                <input type="hidden" name="action" value="save_access_protection">
+                <?php foreach (['enabled' => ($language === 'ja' ? '集中アクセス検知' : 'Detection'), 'auto_block' => ($language === 'ja' ? '自動ブロック（48時間）' : 'Automatic blocking (48 hours)')] as $key => $label): ?>
+                <div class="field"><label for="access-<?= $key ?>"><?= admin_h($label) ?></label><select id="access-<?= $key ?>" name="access_<?= $key ?>" <?= $key === 'auto_block' && !$accessSettings['enabled'] ? 'disabled' : '' ?>><option value="on" <?= $accessSettings[$key] ? 'selected' : '' ?>>ON</option><option value="off" <?= !$accessSettings[$key] ? 'selected' : '' ?>>OFF</option></select></div>
+                <?php endforeach ?>
+                <?php foreach (['state', 'like'] as $accessApi): ?>
+                <fieldset class="field access-rule"><legend><?= admin_h($ui['access_' . $accessApi . '_heading']) ?></legend>
+                    <p class="field-help"><?= admin_h($ui['access_' . $accessApi . '_help']) ?></p>
+                    <label for="access-<?= $accessApi ?>-window"><?= admin_h($ui['access_window_label']) ?></label>
+                    <input id="access-<?= $accessApi ?>-window" name="access_<?= $accessApi ?>_window" aria-describedby="access-<?= $accessApi ?>-window-help" type="number" min="10" max="3600" required value="<?= (int) $accessSettings[$accessApi]['window'] ?>">
+                    <p id="access-<?= $accessApi ?>-window-help" class="field-help"><?= admin_h($ui['access_window_range']) ?></p>
+                    <label for="access-<?= $accessApi ?>-threshold"><?= admin_h($ui['access_threshold_label']) ?></label>
+                    <input id="access-<?= $accessApi ?>-threshold" name="access_<?= $accessApi ?>_threshold" aria-describedby="access-<?= $accessApi ?>-threshold-help" type="number" min="1" max="1000000" required value="<?= (int) $accessSettings[$accessApi]['threshold'] ?>">
+                    <p id="access-<?= $accessApi ?>-threshold-help" class="field-help"><?= admin_h($ui['access_threshold_range']) ?></p>
+                </fieldset>
+                <?php endforeach ?>
+                <p class="field-help"><?= admin_h($ui['access_rule_help']) ?></p>
+                <p class="field-help"><?= admin_h($ui['access_review_help']) ?></p>
+                <div class="save-row"><button class="primary" type="submit" <?= $accessError !== '' ? 'disabled' : '' ?>><?= admin_h($language === 'ja' ? '集中アクセス検知設定を保存' : 'Save access protection') ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
+            </form>
+        </section>
     </section>
 </main>
 <footer class="site-footer"><div>Pollyanna — An Easy-to-Install Like Button System</div><div>Developed by Nikukiu-SYSTEM</div></footer>
