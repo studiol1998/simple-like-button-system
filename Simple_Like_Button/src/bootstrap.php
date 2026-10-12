@@ -788,6 +788,7 @@ function pollyanna_widget_runtime_text(): array
         'maintenance' => $locale['maintenance'],
         'send_error' => $locale['send_error'],
         'rate_limit' => $locale['rate_limit'],
+        'access_blocked' => $locale['access_blocked'] ?? 'Public API access is temporarily blocked.',
         'count_color' => pollyanna_count_display_color(),
         'symbol_unliked' => $symbols['unliked'],
         'symbol_liked' => $symbols['liked'],

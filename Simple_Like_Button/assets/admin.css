@@ -31,6 +31,13 @@ nav{align-items:flex-end;gap:7px;padding-inline:12px;border-bottom:2px solid #ae
 .auth-form .password-toggle{display:flex;align-items:center;gap:8px;width:max-content;font-weight:500;cursor:pointer}.auth-form .password-toggle input{display:inline-block;width:auto;margin:0;padding:0}
 
 /* Settings page layout and readable helper text. */
+.access-protection-card{margin-top:20px;overflow-wrap:anywhere}
+.access-rule{border:1px solid var(--theme-line,var(--line));border-radius:6px;padding:14px}
+.access-rule label{margin-top:10px}
+.access-rule input{display:block;width:100%;margin-top:8px;padding:10px;border:1px solid var(--theme-line,var(--line));border-radius:5px}
+.access-block,.access-history{padding:14px 0;border-top:1px solid var(--theme-line,var(--line))}
+.access-block p,.access-history p{margin:0 0 8px}
+.access-protection-card .pagination{flex-wrap:wrap}
 .settings-panel{min-width:0}
 .settings-panel .settings-card{width:100%;min-width:0}
 .settings-panel form{width:100%;max-width:480px;min-width:0}

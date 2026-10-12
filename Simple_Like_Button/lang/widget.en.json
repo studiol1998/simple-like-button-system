@@ -8,6 +8,7 @@
   "state_unavailable": "Could not load Like state.",
   "maintenance": "The Like service is under maintenance.",
   "send_error": "Could not send your Like. Check your connection and try again.",
+  "access_blocked": "Public API access from this connection is temporarily blocked due to concentrated traffic.",
   "rate_limit": "You have reached the Like limit for this item.\nYou can Like it again in about 24 hours.",
 
 "_editing_guide": [

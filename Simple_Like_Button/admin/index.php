@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/src/AggregationService.php';
 require_once dirname(__DIR__) . '/src/TimezoneChangeService.php';
 require_once dirname(__DIR__) . '/src/OriginPolicy.php';
 require_once dirname(__DIR__) . '/src/InstallerState.php';
+require_once dirname(__DIR__) . '/src/AccessProtectionService.php';
 
 $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
 $isLocalRequest = in_array($remoteAddress, ['127.0.0.1', '::1', '::ffff:127.0.0.1'], true);
@@ -157,6 +158,11 @@ $settingsResult = isset($_SESSION['pollyanna_settings_result']) && is_string($_S
     : '';
 unset($_SESSION['pollyanna_settings_result']);
 $settingsError = '';
+$accessSettings = AccessProtectionService::defaults();
+$accessError = '';
+try { $accessSettings = pollyanna_access_settings(); } catch (Throwable) {
+    $accessError = $language === 'ja' ? '集中アクセス検知設定を読み込めません。' : 'Could not read access protection settings.';
+}
 $aggregationResult = isset($_SESSION['pollyanna_aggregation_result']) && is_string($_SESSION['pollyanna_aggregation_result'])
     ? $_SESSION['pollyanna_aggregation_result']
     : '';
@@ -196,6 +202,37 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (!is_string($postedToken) || !hash_equals($csrfToken, $postedToken)) {
         http_response_code(403);
         $settingsError = (string) ($catalog[$language]['csrf_error'] ?? $ui['settings_save_error']);
+    } elseif (in_array($action, ['save_access_protection', 'release_access_block'], true)) {
+        try {
+            $accessService = new AccessProtectionService(pollyanna_pdo());
+            if (!$accessService->available()) throw new RuntimeException('Migration required.');
+            if ($action === 'save_access_protection') {
+                $requestedAccess = ['enabled' => ($_POST['access_enabled'] ?? '') === 'on',
+                    'auto_block' => ($_POST['access_auto_block'] ?? '') === 'on'];
+                foreach (['state', 'like'] as $accessApi) {
+                    $requestedAccess[$accessApi] = [
+                        'window' => filter_var($_POST['access_' . $accessApi . '_window'] ?? null, FILTER_VALIDATE_INT),
+                        'threshold' => filter_var($_POST['access_' . $accessApi . '_threshold'] ?? null, FILTER_VALIDATE_INT)];
+                }
+                foreach (['access_enabled', 'access_auto_block'] as $switch) {
+                    if (!in_array($_POST[$switch] ?? null, ['on', 'off'], true)) throw new InvalidArgumentException('Invalid switch.');
+                }
+                $accessSettings = AccessProtectionService::validate($requestedAccess);
+                $accessService->overview($accessSettings);
+                pollyanna_save_access_settings($accessSettings);
+                $_SESSION['pollyanna_settings_result'] = $language === 'ja' ? '集中アクセス検知設定を保存しました。' : 'Access protection settings saved.';
+            } else {
+                $blockId = filter_var($_POST['access_block_id'] ?? null, FILTER_VALIDATE_INT);
+                if (!is_int($blockId) || $blockId < 1 || !$accessService->release($blockId, $accessSettings)) {
+                    throw new RuntimeException('Block not found or expired.');
+                }
+                $_SESSION['pollyanna_settings_result'] = $language === 'ja' ? 'ブロックを解除しました。' : 'Block released.';
+            }
+            header('Location: ?tab=admin-operation'); exit;
+        } catch (Throwable) {
+            http_response_code(422);
+            $settingsError = $language === 'ja' ? '保存・解除に失敗しました。入力値、DB更新、ブロックの有効期限を確認してください。' : 'Save or release failed. Check values, migration and block expiry.';
+        }
     } elseif (in_array($action, ['begin_timezone_change', 'timezone_change_batch', 'finish_timezone_change'], true)) {
         header('Content-Type: application/json; charset=utf-8');
         try {
@@ -659,6 +696,15 @@ $dailyPeriod = $language === 'ja' ? $dailyStart->format('Y/n/j') . '〜' . $toda
 $monthlyPeriod = $language === 'ja' ? $monthStart->format('Y/n') . '〜' . $today->format('Y/n') : $monthStart->format('M Y') . ' – ' . $today->format('M Y');
 $hourlyPeriod = $language === 'ja' ? $today->format('Y年n月') : $today->format('F Y');
 $timezoneChangeState = pollyanna_timezone_change_state();
+$accessOverview = ['blocks' => [], 'history' => [], 'total' => 0, 'page' => 1, 'recent' => 0];
+try {
+    $accessService = new AccessProtectionService(pollyanna_pdo());
+    if (!$accessService->available()) throw new RuntimeException('Migration required.');
+    $historyPage = filter_var($_GET['access_page'] ?? 1, FILTER_VALIDATE_INT);
+    $accessOverview = $accessService->overview($accessSettings, is_int($historyPage) ? $historyPage : 1);
+} catch (Throwable) {
+    $accessError = $language === 'ja' ? '集中アクセス検知を利用できません。DB接続と upgrade-access-protection.sql の適用を確認してください。' : 'Access protection unavailable. Check the database and apply upgrade-access-protection.sql.';
+}
 ?>
 <!doctype html>
 <html lang="<?= admin_h($language) ?>" data-theme="<?= admin_h($theme) ?>">
@@ -743,6 +789,54 @@ $timezoneChangeState = pollyanna_timezone_change_state();
                 <div class="save-row"><button class="primary" type="submit"><?= admin_h($language === 'ja' ? 'サイトを追加' : 'Add site') ?></button></div>
             </form>
             </section>
+        </section>
+        <section class="panel settings-card access-protection-card">
+            <h2><?= admin_h($language === 'ja' ? '集中アクセス検知' : 'Access concentration detection') ?></h2>
+            <p class="field-help"><?= admin_h($language === 'ja' ? '検知と自動ブロックは別設定です。共有回線・プロキシでは複数利用者が同じ接続元として計測されます。自動ブロックOFFでは既存ブロックも適用しません。日時はUTCです。' : 'Detection and automatic blocking are separate. Shared connections and proxies can combine visitors. Automatic blocking OFF also bypasses existing blocks. Times are UTC.') ?></p>
+            <?php if ($accessError !== ''): ?><p class="notice settings-error" role="alert"><?= admin_h($accessError) ?></p><?php endif ?>
+            <form method="post" data-settings-form="access-protection" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>">
+                <input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>">
+                <input type="hidden" name="action" value="save_access_protection">
+                <?php foreach (['enabled' => ($language === 'ja' ? '集中アクセス検知' : 'Detection'), 'auto_block' => ($language === 'ja' ? '自動ブロック（48時間）' : 'Automatic blocking (48 hours)')] as $key => $label): ?>
+                <div class="field"><label for="access-<?= $key ?>"><?= admin_h($label) ?></label><select id="access-<?= $key ?>" name="access_<?= $key ?>"><option value="on" <?= $accessSettings[$key] ? 'selected' : '' ?>>ON</option><option value="off" <?= !$accessSettings[$key] ? 'selected' : '' ?>>OFF</option></select></div>
+                <?php endforeach ?>
+                <?php foreach (['state', 'like'] as $accessApi): ?>
+                <fieldset class="field access-rule"><legend><?= $accessApi ?>.php</legend>
+                    <label for="access-<?= $accessApi ?>-window"><?= admin_h($language === 'ja' ? '判定期間（秒、10〜3600）' : 'Window (seconds, 10–3600)') ?></label>
+                    <input id="access-<?= $accessApi ?>-window" name="access_<?= $accessApi ?>_window" type="number" min="10" max="3600" required value="<?= (int) $accessSettings[$accessApi]['window'] ?>">
+                    <label for="access-<?= $accessApi ?>-threshold"><?= admin_h($language === 'ja' ? 'しきい値（回、1〜1000000）' : 'Threshold (requests, 1–1000000)') ?></label>
+                    <input id="access-<?= $accessApi ?>-threshold" name="access_<?= $accessApi ?>_threshold" type="number" min="1" max="1000000" required value="<?= (int) $accessSettings[$accessApi]['threshold'] ?>">
+                </fieldset>
+                <?php endforeach ?>
+                <p class="field-help"><?= admin_h($language === 'ja' ? 'しきい値を超えたリクエストで検知します。まず検知のみで履歴を確認してください。' : 'Detection occurs above the threshold. Review detection-only history before enabling blocks.') ?></p>
+                <div class="save-row"><button class="primary" type="submit" <?= $accessError !== '' ? 'disabled' : '' ?>><?= admin_h($language === 'ja' ? '集中アクセス検知設定を保存' : 'Save access protection') ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
+            </form>
+            <?php if ($accessError === ''): ?>
+            <?php if ($accessOverview['recent'] === 0 && $accessOverview['blocks'] === []): ?><p class="result"><?= admin_h($language === 'ja' ? '直近の判定期間：現在の集中アクセスはありません。' : 'Recent detection window: no concentrated access detected.') ?></p><?php endif ?>
+            <h3><?= admin_h($language === 'ja' ? '現在のブロック件数：' : 'Current blocks: ') ?><?= count($accessOverview['blocks']) ?></h3>
+            <?php foreach ($accessOverview['blocks'] as $block): ?>
+            <div class="access-block">
+                <p><?= admin_h(sprintf($language === 'ja' ? '管理ID %d／検知日時 %s／%s.php／%d回・%d秒／解除予定 %s' : 'ID %d / Detected %s / %s.php / %d requests in %d seconds / Expires %s', (int) $block['id'], $block['started_at'], $block['api'], (int) $block['request_count'], (int) $block['window_seconds'], $block['expires_at'])) ?></p>
+                <form method="post" data-access-release-form data-confirm-message="<?= admin_h($language === 'ja' ? 'このブロックを解除しますか？判定カウンターもリセットします。' : 'Release this block and reset its detection counters?') ?>">
+                    <input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="release_access_block"><input type="hidden" name="access_block_id" value="<?= (int) $block['id'] ?>">
+                    <button class="primary" type="submit"><?= admin_h($language === 'ja' ? '手動解除' : 'Release block') ?></button>
+                </form>
+            </div>
+            <?php endforeach ?>
+            <h3><?= admin_h($language === 'ja' ? '過去60日間の異常検知履歴' : 'Detection history (last 60 days)') ?></h3>
+            <?php if ($accessOverview['history'] === []): ?><p class="muted"><?= admin_h($language === 'ja' ? '履歴はありません。' : 'No history.') ?></p><?php endif ?>
+            <?php foreach ($accessOverview['history'] as $entry): ?>
+            <div class="access-history">
+                <p><?= admin_h(sprintf('%s / %s.php / %d / %ds', $entry['detected_at'], $entry['api'], (int) $entry['request_count'], (int) $entry['window_seconds'])) ?></p>
+                <p class="muted"><?= admin_h(($language === 'ja' ? 'ブロック開始：' : 'Block started: ') . ($entry['block_started_at'] ?? '—') . ' / ' . ($language === 'ja' ? '解除：' : 'Released: ') . ($entry['released_at'] ?? '—') . ' / ' . ($entry['release_method'] === 'manual' ? ($language === 'ja' ? '手動' : 'Manual') : ($entry['release_method'] === 'automatic' ? ($language === 'ja' ? '自動' : 'Automatic') : ((int) $entry['blocked'] === 1 ? ($language === 'ja' ? '未解除' : 'Not released') : ($language === 'ja' ? '検知のみ' : 'Detection only'))))) ?></p>
+            </div>
+            <?php endforeach ?>
+            <nav class="pagination" aria-label="<?= admin_h($language === 'ja' ? '検知履歴' : 'Detection history') ?>">
+                <?php if ($accessOverview['page'] > 1): ?><a href="?tab=admin-operation&amp;access_page=<?= $accessOverview['page'] - 1 ?>"><?= admin_h($ui['previous_page']) ?></a><?php endif ?>
+                <span><?= admin_h(sprintf($ui['page_status'], $accessOverview['page'], max(1, (int) ceil($accessOverview['total'] / 50)))) ?></span>
+                <?php if ($accessOverview['page'] * 50 < $accessOverview['total']): ?><a href="?tab=admin-operation&amp;access_page=<?= $accessOverview['page'] + 1 ?>"><?= admin_h($ui['next_page']) ?></a><?php endif ?>
+            </nav>
+            <?php endif ?>
         </section>
     </section>
     <section id="panel-public-display" class="settings-panel" role="tabpanel" aria-labelledby="tab-public-display" data-admin-panel="public-display" <?= $activeTab === 'public-display' ? '' : 'hidden' ?>>

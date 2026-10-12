@@ -9,6 +9,7 @@
 /config/public_count_settings.json
 /config/public_count_color_settings.json
 /config/button_display_settings.json
+/config/access_protection_settings.json
 /config/aggregation_threshold_settings.json
 /config/timezone_settings.json
 /config/timezone_change.json

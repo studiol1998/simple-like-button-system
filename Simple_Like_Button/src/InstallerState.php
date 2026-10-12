@@ -15,6 +15,9 @@ final class PollyannaInstallerState
         'pollyanna_hourly_aggregates',
         'pollyanna_identifier_urls',
         'pollyanna_allowed_origins',
+        'pollyanna_access_buckets',
+        'pollyanna_access_history',
+        'pollyanna_access_blocks',
     ];
 
     public static function isWritableDirectory(string $path): bool

@@ -278,7 +278,7 @@ if (siteOriginField && baseDomainField) {
     updateBaseDomainCandidate();
 }
 
-document.querySelectorAll('[data-origin-delete-form]').forEach((form) => {
+document.querySelectorAll('[data-origin-delete-form], [data-access-release-form]').forEach((form) => {
     form.addEventListener('submit', (event) => {
         if (!window.confirm(form.dataset.confirmMessage || '')) event.preventDefault();
     });

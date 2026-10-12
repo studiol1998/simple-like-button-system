@@ -160,6 +160,7 @@
             countRefreshInFlight: false,
             consecutiveFailures: 0,
             maintenance: false,
+            blockedUntil: 0,
             initialPromise: null,
             initialComplete: false,
             revision: 0,
@@ -213,7 +214,8 @@
         ) {
             return;
         }
-        const delay = delaySeconds === null ? controller.countRefreshInterval : delaySeconds;
+        const delay = Math.max(delaySeconds === null ? controller.countRefreshInterval : delaySeconds,
+            Math.ceil((controller.blockedUntil - Date.now()) / 1000));
         controller.countRefreshTimer = window.setTimeout(
             () => refreshCount(controller),
             delay * 1000
@@ -227,6 +229,14 @@
             widget.button.disabled = true;
             widget.status.textContent = widget.getText('maintenance');
         }
+    }
+
+    function showAccessBlock(controller, result) {
+        if (result.access_blocked !== true) return false;
+        const retry = Number.isInteger(result.retry_after) && result.retry_after > 0 ? result.retry_after : 60;
+        controller.blockedUntil = Date.now() + Math.min(retry, 172800) * 1000;
+        for (const widget of controller.widgets) widget.status.textContent = widget.getText('access_blocked');
+        return true;
     }
 
     function stateRequestPayload(identifier) {
@@ -259,6 +269,7 @@
             });
             const result = await response.json();
             updateGroupText(controller, result.widget_text);
+            if (showAccessBlock(controller, result)) return;
             if (result.maintenance === true) {
                 markMaintenance(controller);
                 return;
@@ -294,6 +305,7 @@
             });
             const result = await response.json();
             updateGroupText(controller, result.widget_text);
+            if (showAccessBlock(controller, result)) return;
             if (result.maintenance === true) {
                 markMaintenance(controller);
                 return;
@@ -345,6 +357,7 @@
             maintenance: 'メンテナンス中です。',
             send_error: '送信できませんでした。通信を確認して、もう一度お試しください。',
             rate_limit: 'この作品へのいいね上限に達しました。時間をおいてお試しください。',
+            access_blocked: '集中アクセスによりAPI利用を一時的に停止しています。',
             count_color: '#767676',
             symbol_unliked: '♡',
             symbol_liked: '♥',
@@ -479,6 +492,7 @@
                 });
                 const result = await response.json();
                 updateGroupText(controller, result.widget_text);
+                if (showAccessBlock(controller, result)) return;
 
                 if (result.maintenance === true) {
                     markMaintenance(controller);

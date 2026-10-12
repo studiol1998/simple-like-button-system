@@ -63,6 +63,24 @@ The browser identifier is stored in LocalStorage; the database stores only its H
 
 Edit widget text in `lang/widget.ja.json` and `lang/widget.en.json`. To change a success message, keep its key (such as `like01`) and edit the value. To add an option, add the same numbered key to both JSON files. JSON does not support comments.
 
+## Access concentration detection (v1.0.0-beta.1)
+
+The Admin and operation settings tab has an access protection card. Detection defaults to ON; automatic blocking defaults to OFF. Review the last 60 days of history and tune the rules for ordinary traffic before enabling blocks. `state.php` defaults to 2,400 requests per 60 seconds; `like.php` to 240 per 60 seconds. Rules are independent per connection and API, using one-second rolling buckets. Detection occurs above the threshold. Windows accept 10–3,600 seconds and thresholds 1–1,000,000 requests.
+
+The state default allows twice the approximately 1,200 requests/minute from 100 distinct identifiers polling every five seconds. The Like default uses four requests/second as a starting point. These assumptions do not guarantee that all legitimate shared traffic stays below the limits. Detection-only history is deduplicated while a previous detection remains in that connection/API window.
+
+Valid OPTIONS is excluded. Invalid input, rejected origins and invalid OPTIONS are counted. Rejected origins retain 403; valid OPTIONS retains 204 even during a block. Allowed origins receive CORS-enabled 429 with `Retry-After` when blocked, distinguished from the existing per-browser Like quota. Only the two public APIs are blocked; Admin and ordinary site pages remain available.
+
+Blocks expire 48 hours after creation. Admin can confirm a release using a management ID, which resets both API counters. Recurrence creates a new history and a new 48-hour block, without escalation or permanent blocks. Automatic blocking OFF bypasses existing blocks without deleting their management records. Detection OFF stops new detections and removes counters; existing blocks still apply if automatic blocking remains ON. Times are displayed in UTC.
+
+Only purpose-separated HMAC values derived from the existing `app_secret` and `REMOTE_ADDR` are stored in short-term counters and active block management. Forwarded headers are ignored. **Shared networks and reverse proxies can combine multiple visitors into one connection and cause false blocks.** History contains no IP addresses or IP hashes.
+
+Expired counters, blocks and history are deleted on the next public API check or authenticated Admin access. Valid OPTIONS also runs cleanup without being counted. With no traffic, physical deletion is delayed, but expired blocks cannot extend beyond their deadline. History becomes eligible for deletion 60 days after detection. No cron is required.
+
+For an existing installation, back up the database, `config/` and `log/`, apply `install/upgrade-access-protection.sql` to its database, then update application files while preserving settings, credentials and the secret. The repeatable SQL only adds three tables. Do not restore a deleted `install/` directory or rerun the installer; obtain and run the migration SQL separately. New installations use the updated `install/install.sql`.
+
+Before migration, or if protection encounters a database/locking error, the public APIs continue without this protection and log the problem. Admin reports unavailable schema/read failures. Monitor logs and verify operation after deployment. A short database-scoped lock serializes protection transactions. This application feature cannot stop network-scale attacks before they reach PHP or the database.
+
 ## Local verification page
 
 `tests/local-aggregation-admin.php` is a local-only test page with no login. Do not deploy or expose it in production. In XAMPP, open `http://localhost/Simple_Like_Button/tests/local-aggregation-admin.php`. Opening the page runs one aggregation batch of up to 30 pending records.
