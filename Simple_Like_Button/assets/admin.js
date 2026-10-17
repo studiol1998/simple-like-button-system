@@ -1,5 +1,16 @@
 'use strict';
 
+document.querySelectorAll('[data-new-admin-password]').forEach((field) => {
+    const validate = () => {
+        const value = field.value;
+        const valid = Array.from(value).length >= 12 && new TextEncoder().encode(value).length <= 72 && !value.includes('\0');
+        field.setCustomValidity(value === '' || valid ? '' : (field.closest('form')?.dataset.passwordRule || 'Invalid password.'));
+    };
+    field.addEventListener('input', validate);
+    validate();
+});
+
+
 const accessDetection = document.getElementById('access-enabled');
 const accessAutoBlock = document.getElementById('access-auto_block');
 if (accessDetection && accessAutoBlock) {

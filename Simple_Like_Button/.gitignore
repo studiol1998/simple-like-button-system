@@ -17,3 +17,8 @@
 /log/*
 !/log/.gitkeep
 !/log/.htaccess
+
+/config/.installer.lock
+/config/.installer-in-progress
+/config/.admin-auth.lock
+/config/.admin-credentials-*

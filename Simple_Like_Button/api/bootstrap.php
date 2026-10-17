@@ -11,7 +11,7 @@ function pollyanna_public_access_check(bool $countRequest = true): int
     try {
         $service = new AccessProtectionService(pollyanna_pdo());
         if (!$service->available()) {
-            error_log('Pollyanna access protection unavailable: apply upgrade-access-protection.sql.');
+            error_log('Pollyanna access protection unavailable: verify database connectivity and required access protection tables.');
             return 0; // Preserve existing installations until their additive migration is applied.
         }
         if (!$countRequest) { $service->maintain(pollyanna_access_settings()); return 0; }

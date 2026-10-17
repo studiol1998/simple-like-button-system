@@ -46,13 +46,13 @@ The installer does not create the database or its user. Some hosts automatically
 - Use a session and CSRF token throughout setup.
 - Never concatenate submitted connection values into SQL. Execute only bundled fixed schema SQL.
 - Never expose database passwords, application secrets, or admin passwords in errors or logs.
-- Write configuration through temporary files and atomic replacement.
+- Exclusively create new artifacts without replacing existing files. Retain partial artifacts and the progress marker on failure.
 - Treat a valid `config/config.php` plus admin credentials as an installed system.
-- Repair and overwrite flows are outside the first installer release.
-- Atomically save `config/install_complete.json` after successful installation. While both the completion marker and `install/` directory exist, stop the admin interface before login processing and show only deletion instructions.
+- Refuse repair or overwrite of complete installations. Partial-state recovery retries only completion after stop confirmation and artifact verification.
+- Exclusively create `config/install_complete.json` after installation. While `install/` exists in a partial or complete state, stop Admin before login processing.
 - Unlock admin access only after the entire `install/` directory has been removed from the server. Removing only `index.php` or using a UI action does not unlock it.
 - Check web access protection for `log/` and `config/`; explain non-Apache requirements on completion.
-- If file saving fails after table creation, keep the tables and allow a safe retry using `CREATE TABLE IF NOT EXISTS`.
+- If saving fails after table creation, preserve tables and artifacts and keep the progress marker. Do not restart general installation; follow the README recovery conditions.
 
 ## Defaults
 
@@ -89,3 +89,7 @@ On 2026-10-04, the full flow was verified using an isolated `Pollyanna_Installer
 ## v1.0 Phase 2: primary site settings
 
 The Basic settings screen suggests a primary origin and base domain derived from the installer URL and requires the administrator to confirm or edit them. The candidate is not trusted automatically. Subdomain access defaults to ON and is disabled for localhost or IP addresses. Confirmed values are stored in `config.php`.
+
+## Pre-release security update (2026-10-13)
+
+Installation and recovery share a filesystem lock and recheck state after acquisition. Exclusive progress markers and artifact creation prevent overwrites. New admin passwords use a shared policy: at least 12 Unicode code points, at most 72 UTF-8 bytes, and no NUL, hashed with bcrypt at PHP default cost. Remaining progress means partial installation. Only verified completion recovery is permitted after confirming the previous process stopped. This supersedes the earlier temporary-file replacement and general retry description. See the README for operational steps.

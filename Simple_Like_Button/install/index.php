@@ -7,6 +7,7 @@ $credentialsPath = $root . '/config/admin_credentials.json';
 $completionPath = $root . '/config/install_complete.json';
 require_once $root . '/src/OriginPolicy.php';
 require_once $root . '/src/InstallerState.php';
+require_once $root . '/src/AdminPasswordPolicy.php';
 $isHttps = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 session_name('pollyanna_installer');
 session_set_cookie_params(['httponly' => true, 'secure' => $isHttps, 'samesite' => 'Strict']);
@@ -23,7 +24,7 @@ $messages = [
         'remove_installer_path' => '削除するディレクトリ：install/',
         'admin_locked' => 'installディレクトリを削除した後、管理画面を開いてください。',
         'read_documentation' => 'READMEを確認',
-        'view_widget_example' => 'ウィジェット設置例を確認',
+        'view_widget_example' => 'ログイン後に動作テストを開く（install削除後）',
         'admin_link' => '管理画面へ',
         'welcome_title' => 'Pollyannaへようこそ！',
         'welcome_intro' => 'インストールを始める前に、データベース（データを保存しておく入れ物）の準備をします。',
@@ -109,10 +110,10 @@ $messages = [
         'timezone' => '集計タイムゾーン',
         'admin_password' => '管理パスワード',
         'admin_password_confirmation' => '管理パスワード（確認）',
-        'password_requirement' => '12文字以上で入力してください。保存するのはパスワードのハッシュだけです。',
+        'password_requirement' => '12 Unicode文字以上、UTF-8で72バイト以内。空白はそのまま扱い、パスワードのハッシュだけを保存します。',
         'show_password' => 'パスワードを表示',
         'basic_continue' => '実行確認へ',
-        'password_invalid' => '管理パスワードは12文字以上、1024文字以下で入力してください。',
+        'password_invalid' => '管理パスワードは12 Unicode文字以上、UTF-8で72バイト以内の有効な文字列を入力してください。NUL文字は使用できません。',
         'password_mismatch' => '確認用の管理パスワードが一致しません。',
         'timezone_invalid' => 'タイムゾーンを選択してください。',
         'back' => '戻る',
@@ -127,9 +128,10 @@ $messages = [
         'save_admin_password' => '管理パスワードをハッシュ化して保存',
         'lock_admin' => '完了後、installディレクトリ削除まで管理画面をロック',
         'install_button' => 'インストールを実行',
-        'install_failed' => 'インストールを完了できませんでした。入力内容とサーバー設定を確認して、もう一度実行してください。DBパスワードや管理パスワードはログへ出力していません。',
+        'install_failed' => 'インストールを完了できませんでした。入力内容とサーバー設定を確認して、画面を再読み込みし、途中状態の案内を確認してください。進行マーカーは時間経過だけで削除しないでください。DBパスワードや管理パスワードはログへ出力していません。',
         'partial_title' => 'インストールが途中まで完了しています',
         'partial_text' => '設定とデータを保護するため、新規インストールは開始できません。保存済みの成果物を確認し、最後の完了処理だけを再試行できます。',
+        'recovery_stopped' => '以前のインストール実行が停止していることを確認しました。',
         'partial_recover' => '完了処理を再試行',
         'partial_failed' => '自動復旧できませんでした。完了マーカーは作成しておらず、既存のconfig.php、管理認証情報、DBも変更していません。config.php、admin_credentials.json、DB接続、および必要なPollyannaテーブルを確認してください。',
         'steps' => ['ようこそ', '環境確認', 'DB設定', '基本設定', '実行確認', 'インストール', '完了'],
@@ -144,7 +146,7 @@ $messages = [
         'remove_installer_path' => 'Directory to delete: install/',
         'admin_locked' => 'After deleting the install directory, open the admin interface.',
         'read_documentation' => 'Read the README',
-        'view_widget_example' => 'View widget example',
+        'view_widget_example' => 'Open authenticated widget test (after deleting install/)',
         'admin_link' => 'Go to Admin',
         'welcome_title' => 'Welcome to Pollyanna!',
         'welcome_intro' => 'Before starting the installation, prepare a database—the container where Pollyanna stores its data.',
@@ -230,10 +232,10 @@ $messages = [
         'timezone' => 'Aggregation timezone',
         'admin_password' => 'Admin password',
         'admin_password_confirmation' => 'Confirm admin password',
-        'password_requirement' => 'Enter at least 12 characters. Only the password hash will be stored.',
+        'password_requirement' => 'Use at least 12 Unicode code points and at most 72 UTF-8 bytes. Spaces are preserved. Only the password hash is stored.',
         'show_password' => 'Show passwords',
         'basic_continue' => 'Review installation',
-        'password_invalid' => 'Enter an admin password between 12 and 1024 characters.',
+        'password_invalid' => 'Use valid UTF-8 with at least 12 Unicode code points, at most 72 bytes, and no NUL characters.',
         'password_mismatch' => 'The admin password confirmation does not match.',
         'timezone_invalid' => 'Select a timezone.',
         'back' => 'Back',
@@ -248,9 +250,10 @@ $messages = [
         'save_admin_password' => 'Hash and save the admin password',
         'lock_admin' => 'Lock Admin after completion until the install directory is deleted',
         'install_button' => 'Install Pollyanna',
-        'install_failed' => 'Installation could not be completed. Check the submitted values and server configuration, then try again. Database and admin passwords were not written to the log.',
+        'install_failed' => 'Installation could not be completed. Check the submitted values and server configuration, then reload to review the partial state. Never remove a progress marker merely because time has passed. Database and admin passwords were not written to the log.',
         'partial_title' => 'Installation is partially complete',
         'partial_text' => 'A new installation cannot start because the saved configuration and data must be protected. You can verify the existing artifacts and retry only the final completion step.',
+        'recovery_stopped' => 'I have confirmed that the previous installer stopped.',
         'partial_recover' => 'Retry completion',
         'partial_failed' => 'Automatic recovery failed. No completion marker was created, and the existing config.php, administrator credentials, and database were not changed. Check config.php, admin_credentials.json, the database connection, and the required Pollyanna tables.',
         'steps' => ['Welcome', 'Environment', 'Database', 'Basic settings', 'Confirmation', 'Install', 'Complete'],
@@ -316,26 +319,6 @@ function installer_has_completion_marker(string $path): bool
         return false;
     }
     return is_array($completion) && ($completion['completed'] ?? false) === true;
-}
-
-function installer_atomic_write(string $path, string $contents): void
-{
-    $directory = dirname($path);
-    $temporary = tempnam($directory, '.pollyanna-install-');
-    if ($temporary === false) throw new RuntimeException('Could not create a temporary configuration file.');
-    try {
-        if (file_put_contents($temporary, $contents, LOCK_EX) === false) {
-            throw new RuntimeException('Could not write a temporary configuration file.');
-        }
-        if (is_file($path) && !unlink($path)) {
-            throw new RuntimeException('Could not replace an incomplete configuration file.');
-        }
-        if (!rename($temporary, $path)) {
-            throw new RuntimeException('Could not publish a configuration file.');
-        }
-    } finally {
-        if (is_file($temporary)) unlink($temporary);
-    }
 }
 
 function installer_config_contents(array $database, array $basic, string $secret): string
@@ -417,8 +400,7 @@ if ($requestMethod === 'POST') {
         $error = $ui['csrf_error'];
     } elseif ($action === 'recover_installation' && $partialInstallation) {
         try {
-            PollyannaInstallerState::verifyRecoverable($configPath, $credentialsPath);
-            PollyannaInstallerState::writeCompletionMarker($completionPath);
+            PollyannaInstallerState::recover($configPath, $credentialsPath, $completionPath, ($_POST['installer_stopped'] ?? '') === '1');
             header('Location: ?language=' . rawurlencode($language));
             exit;
         } catch (Throwable $recoveryError) {
@@ -484,7 +466,7 @@ if ($requestMethod === 'POST') {
             $error = $ui['origin_invalid'];
         } elseif (!in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
             $error = $ui['timezone_invalid'];
-        } elseif (strlen($password) < 12 || strlen($password) > 1024) {
+        } elseif (!AdminPasswordPolicy::isValid($password)) {
             $error = $ui['password_invalid'];
         } elseif (!hash_equals($password, $confirmation)) {
             $error = $ui['password_mismatch'];
@@ -499,31 +481,33 @@ if ($requestMethod === 'POST') {
         $database = $_SESSION['installer_database'];
         $basic = $_SESSION['installer_basic'];
         try {
-            if (!is_array($database) || !is_array($basic)) throw new RuntimeException('Installer state is invalid.');
-            $pdo = new PDO((string) $database['dsn'], (string) $database['user'], (string) $database['password'], [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
-            $schema = file_get_contents(__DIR__ . '/install.sql');
-            if ($schema === false) throw new RuntimeException('Schema file could not be read.');
-            $statements = preg_split('/;\s*(?:\r?\n|\z)/', $schema, -1, PREG_SPLIT_NO_EMPTY);
-            if (!is_array($statements) || $statements === []) throw new RuntimeException('Schema file is empty.');
-            foreach ($statements as $statement) {
-                if (trim($statement) !== '') $pdo->exec($statement);
-            }
-            $adminHash = password_hash((string) $basic['admin_password'], PASSWORD_DEFAULT);
-            if (!is_string($adminHash)) throw new RuntimeException('Admin password could not be hashed.');
-            $secret = bin2hex(random_bytes(32));
-            installer_atomic_write(
-                $credentialsPath,
-                json_encode(['password_hash' => $adminHash], JSON_THROW_ON_ERROR) . PHP_EOL
-            );
-            installer_atomic_write(
-                $configPath,
-                installer_config_contents($database, $basic, $secret)
-            );
-            PollyannaInstallerState::writeCompletionMarker($completionPath);
+            PollyannaInstallerState::install($configPath, $credentialsPath, $completionPath, static function () use ($database, $basic, $configPath, $credentialsPath, $completionPath): void {
+                if (!is_array($database) || !is_array($basic)) throw new RuntimeException('Installer state is invalid.');
+                $pdo = new PDO((string) $database['dsn'], (string) $database['user'], (string) $database['password'], [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]);
+                $schema = file_get_contents(__DIR__ . '/install.sql');
+                if ($schema === false) throw new RuntimeException('Schema file could not be read.');
+                $statements = preg_split('/;\s*(?:\r?\n|\z)/', $schema, -1, PREG_SPLIT_NO_EMPTY);
+                if (!is_array($statements) || $statements === []) throw new RuntimeException('Schema file is empty.');
+                foreach ($statements as $statement) {
+                    if (trim($statement) !== '') $pdo->exec($statement);
+                }
+                $adminHash = AdminPasswordPolicy::hash((string) $basic['admin_password']);
+                if (!is_string($adminHash)) throw new RuntimeException('Admin password could not be hashed.');
+                $secret = bin2hex(random_bytes(32));
+                PollyannaInstallerState::createExclusive(
+                    $credentialsPath,
+                    json_encode(['password_hash' => $adminHash], JSON_THROW_ON_ERROR) . PHP_EOL
+                );
+                PollyannaInstallerState::createExclusive(
+                    $configPath,
+                    installer_config_contents($database, $basic, $secret)
+                );
+                PollyannaInstallerState::writeCompletionMarker($completionPath);
+            });
             unset($_SESSION['installer_database'], $_SESSION['installer_basic'], $_SESSION['installer_step']);
             session_regenerate_id(true);
             header('Location: ?language=' . rawurlencode($language));
@@ -566,7 +550,7 @@ $currentStepIndex = $stepIndexes[$step] ?? 0;
                 <p><?= installer_h($ui['remove_installer_text']) ?></p>
                 <div class="message warning"><strong><?= installer_h($ui['remove_installer_path']) ?></strong></div>
                 <p><?= installer_h($ui['admin_locked']) ?></p>
-                <div class="completion-links"><a class="primary-link" href="../admin/"><?= installer_h($ui['admin_link']) ?></a><a class="secondary-link" href="readme.php?language=<?= installer_h($language) ?>" target="_blank" rel="noopener noreferrer"><?= installer_h($ui['read_documentation']) ?></a><a class="secondary-link" href="../tests/like-button-test.html" target="_blank" rel="noopener noreferrer"><?= installer_h($ui['view_widget_example']) ?></a></div>
+                <div class="completion-links"><a class="primary-link" href="../admin/"><?= installer_h($ui['admin_link']) ?></a><a class="secondary-link" href="readme.php?language=<?= installer_h($language) ?>" target="_blank" rel="noopener noreferrer"><?= installer_h($ui['read_documentation']) ?></a><a class="secondary-link" href="../admin/?view=widget-test" target="_blank" rel="noopener noreferrer"><?= installer_h($ui['view_widget_example']) ?></a></div>
             <?php else: ?>
                 <h1><?= installer_h($ui['installed_title']) ?></h1>
                 <p><?= installer_h($ui['installed_text']) ?></p>
@@ -576,7 +560,7 @@ $currentStepIndex = $stepIndexes[$step] ?? 0;
             <h1><?= installer_h($ui['partial_title']) ?></h1>
             <p><?= installer_h($ui['partial_text']) ?></p>
             <?php if ($error !== ''): ?><div class="message error" role="alert"><?= installer_h($error) ?></div><?php endif ?>
-            <form method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="recover_installation"><button class="primary" type="submit"><?= installer_h($ui['partial_recover']) ?></button></form>
+            <form method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="recover_installation"><label class="check-label"><input type="checkbox" name="installer_stopped" value="1" required> <?= installer_h($ui['recovery_stopped']) ?></label><button class="primary" type="submit"><?= installer_h($ui['partial_recover']) ?></button></form>
         <?php elseif ($step === 'welcome'): ?>
             <h1><?= installer_h($ui['welcome_title']) ?></h1>
             <p><?= installer_h($ui['welcome_intro']) ?></p>
@@ -620,14 +604,14 @@ $currentStepIndex = $stepIndexes[$step] ?? 0;
             <h1><?= installer_h($ui['basic_title']) ?></h1>
             <p><?= installer_h($ui['basic_intro']) ?></p>
             <?php if ($error !== ''): ?><div class="message error" role="alert"><?= installer_h($error) ?></div><?php endif ?>
-            <form class="installer-form" method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="save_basic">
+            <form class="installer-form" method="post" data-password-rule="<?= installer_h($ui['password_requirement']) ?>"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="save_basic">
                 <?php $savedBasic = is_array($_SESSION['installer_basic'] ?? null) ? $_SESSION['installer_basic'] : []; ?>
                 <div class="form-field"><label for="site-origin"><?= installer_h($ui['site_origin']) ?></label><p class="field-description"><?= installer_h($ui['site_origin_help']) ?></p><input id="site-origin" name="site_origin" type="url" required value="<?= installer_h((string) ($savedBasic['site_origin'] ?? $candidateOrigin)) ?>" data-origin-host-source></div>
                 <div class="form-field"><label for="site-base-domain"><?= installer_h($ui['site_base_domain']) ?></label><p class="field-description"><?= installer_h($ui['site_base_domain_help']) ?></p><input id="site-base-domain" name="site_base_domain" type="text" required value="<?= installer_h((string) ($savedBasic['site_base_domain'] ?? $candidateBaseDomain)) ?>"></div>
                 <label class="check-label"><input type="checkbox" name="site_base_domain_include_subdomains" value="1" <?= (($savedBasic['site_base_domain_include_subdomains'] ?? true) === true) ? 'checked' : '' ?> data-subdomain-toggle> <?= installer_h($ui['site_subdomains']) ?></label>
                 <label><?= installer_h($ui['timezone']) ?><select name="timezone" required><?php $savedTimezone = is_array($_SESSION['installer_basic'] ?? null) ? (string) ($_SESSION['installer_basic']['timezone'] ?? 'Asia/Tokyo') : 'Asia/Tokyo'; foreach (DateTimeZone::listIdentifiers() as $timezone): ?><option value="<?= installer_h($timezone) ?>" <?= $timezone === $savedTimezone ? 'selected' : '' ?>><?= installer_h($timezone) ?></option><?php endforeach ?></select></label>
-                <label><?= installer_h($ui['admin_password']) ?><input name="admin_password" type="password" minlength="12" maxlength="1024" required autocomplete="new-password" data-installer-password></label>
-                <label><?= installer_h($ui['admin_password_confirmation']) ?><input name="admin_password_confirmation" type="password" minlength="12" maxlength="1024" required autocomplete="new-password" data-installer-password></label>
+                <label><?= installer_h($ui['admin_password']) ?><input name="admin_password" type="password" maxlength="72" data-new-admin-password required autocomplete="new-password" data-installer-password></label>
+                <label><?= installer_h($ui['admin_password_confirmation']) ?><input name="admin_password_confirmation" type="password" maxlength="72" data-new-admin-password required autocomplete="new-password" data-installer-password></label>
                 <p class="form-help"><?= installer_h($ui['password_requirement']) ?></p><label class="check-label"><input type="checkbox" data-installer-password-toggle> <?= installer_h($ui['show_password']) ?></label>
                 <div class="form-actions"><a class="secondary-link" href="?step=database&amp;language=<?= installer_h($language) ?>"><?= installer_h($ui['back']) ?></a><button class="primary" type="submit"><?= installer_h($ui['basic_continue']) ?></button></div>
             </form>

@@ -33,7 +33,8 @@ final class PollyannaInstallerState
 
     public static function detect(string $configPath, string $credentialsPath, string $completionPath): string
     {
-        $hasAnyArtifact = is_file($configPath) || is_file($credentialsPath) || is_file($completionPath);
+        if (file_exists(dirname($configPath) . '/.installer-in-progress')) return self::PARTIAL;
+        $hasAnyArtifact = file_exists($configPath) || file_exists($credentialsPath) || file_exists($completionPath);
         if (!$hasAnyArtifact) {
             return self::UNINSTALLED;
         }
@@ -139,36 +140,68 @@ final class PollyannaInstallerState
             ['completed' => true, 'installed_at' => gmdate('c')],
             JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
         ) . PHP_EOL;
-        self::atomicWrite($path, $json);
+        self::createExclusive($path, $json);
         if (!self::hasValidCompletionMarker($path)) {
             throw new RuntimeException('The installation completion marker could not be verified.');
         }
     }
 
-    private static function atomicWrite(string $path, string $contents): void
+    /** Never replace existing installer artifacts, even between checking and writing. */
+    public static function createExclusive(string $path, string $contents): void
     {
-        $directory = dirname($path);
-        if (!is_dir($directory) || !is_writable($directory)) {
-            throw new RuntimeException('The completion marker directory is not writable.');
-        }
-        $temporary = tempnam($directory, '.pollyanna-install-');
-        if ($temporary === false) {
-            throw new RuntimeException('Could not create a temporary completion marker.');
-        }
+        $stream = @fopen($path, 'x');
+        if ($stream === false) throw new RuntimeException('Installer artifact already exists or cannot be created.');
         try {
-            if (file_put_contents($temporary, $contents, LOCK_EX) === false) {
-                throw new RuntimeException('Could not write a temporary completion marker.');
+            $offset = 0;
+            while ($offset < strlen($contents)) {
+                $written = @fwrite($stream, substr($contents, $offset));
+                if ($written === false || $written === 0) throw new RuntimeException('Could not write installer artifact.');
+                $offset += $written;
             }
-            if (is_file($path) && !unlink($path)) {
-                throw new RuntimeException('Could not replace an incomplete completion marker.');
-            }
-            if (!rename($temporary, $path)) {
-                throw new RuntimeException('Could not publish the completion marker.');
-            }
+            if (!fflush($stream)) throw new RuntimeException('Could not flush installer artifact.');
+        } finally { fclose($stream); }
+        // A partial newly created file is intentionally retained on failure.
+    }
+
+    private static function locked(string $configPath, callable $work): void
+    {
+        $lock = @fopen(dirname($configPath) . '/.installer.lock', 'c');
+        if ($lock === false) throw new RuntimeException('Installer locking is unavailable.');
+        try {
+            if (!flock($lock, LOCK_EX | LOCK_NB)) throw new RuntimeException('Another installer is running.');
+            $work();
         } finally {
-            if (is_file($temporary)) {
-                unlink($temporary);
-            }
+            flock($lock, LOCK_UN);
+            fclose($lock);
         }
+    }
+
+    public static function install(string $configPath, string $credentialsPath, string $completionPath, callable $work): void
+    {
+        self::locked($configPath, static function () use ($configPath, $credentialsPath, $completionPath, $work): void {
+            clearstatcache();
+            if (self::detect($configPath, $credentialsPath, $completionPath) !== self::UNINSTALLED) {
+                throw new RuntimeException('Installation already started or completed.');
+            }
+            $progress = dirname($configPath) . '/.installer-in-progress';
+            self::createExclusive($progress, json_encode(['started_at' => gmdate('c')], JSON_THROW_ON_ERROR) . PHP_EOL);
+            $work();
+            self::verifyRecoverable($configPath, $credentialsPath);
+            if (!self::hasValidCompletionMarker($completionPath)) throw new RuntimeException('Installation completion is missing.');
+            if (!unlink($progress)) throw new RuntimeException('Installation finished, but progress cleanup requires review.');
+        });
+    }
+
+    public static function recover(string $configPath, string $credentialsPath, string $completionPath, bool $stoppedConfirmed): void
+    {
+        self::locked($configPath, static function () use ($configPath, $credentialsPath, $completionPath, $stoppedConfirmed): void {
+            clearstatcache();
+            if (self::detect($configPath, $credentialsPath, $completionPath) !== self::PARTIAL) throw new RuntimeException('Installation is not partial.');
+            $progress = dirname($configPath) . '/.installer-in-progress';
+            if (!$stoppedConfirmed) throw new RuntimeException('Confirm that the previous installer stopped before recovery.');
+            self::verifyRecoverable($configPath, $credentialsPath);
+            if (!self::hasValidCompletionMarker($completionPath)) self::writeCompletionMarker($completionPath);
+            if (file_exists($progress) && !unlink($progress)) throw new RuntimeException('Progress cleanup requires review.');
+        });
     }
 }

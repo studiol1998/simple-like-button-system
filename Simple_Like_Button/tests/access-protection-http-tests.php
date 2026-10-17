@@ -241,7 +241,7 @@ window.addEventListener('load', async () => {
   for (const id of ['wide', 'narrow', 'wide-en', 'narrow-en']) {
    const frame = document.getElementById(id); let d = frame.contentDocument, w = frame.contentWindow;
    const cards = [...d.querySelectorAll('#panel-admin-operation .settings-card')];
-   assert(cards.length === 3, id + ' three operation cards');
+   assert(cards.length === 4, id + ' four operation cards including password change');
    const widths = cards.map(c => c.getBoundingClientRect().width);
    assert(Math.max(...widths) - Math.min(...widths) < 1, id + ' same card widths');
    assert(cards.every((c,i) => !i || c.getBoundingClientRect().top >= cards[i-1].getBoundingClientRect().bottom), id + ' vertical order');

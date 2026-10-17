@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/AdminPasswordPolicy.php';
+
 function pollyanna_config(): array
 {
     static $config = null;
@@ -1084,29 +1086,45 @@ function pollyanna_admin_password_hash(): ?string
     return $hash;
 }
 
-function pollyanna_save_admin_password(string $password): void
+function pollyanna_save_admin_password(string $password, ?string $currentPassword = null, ?string $expectedHash = null): void
 {
-    if (strlen($password) < 12 || strlen($password) > 1024) {
+    if (!AdminPasswordPolicy::isValid($password)) {
         throw new InvalidArgumentException('Pollyanna admin password length is invalid.');
     }
-    $hash = password_hash($password, PASSWORD_DEFAULT);
-    if (!is_string($hash)) {
-        throw new RuntimeException('Pollyanna admin password could not be hashed.');
-    }
     $configDirectory = dirname(__DIR__) . '/config';
-    $temporaryPath = tempnam($configDirectory, '.admin-credentials-');
-    if ($temporaryPath === false) {
-        throw new RuntimeException('Pollyanna admin credentials could not be saved.');
-    }
+    $lock = @fopen($configDirectory . '/.admin-auth.lock', 'c');
+    if ($lock === false) throw new RuntimeException('Administrator credentials are unavailable.');
+    $temporaryPath = false;
     try {
-        $json = json_encode(['password_hash' => $hash], JSON_THROW_ON_ERROR) . PHP_EOL;
-        if (file_put_contents($temporaryPath, $json, LOCK_EX) === false) {
+        if (!flock($lock, LOCK_EX | LOCK_NB)) throw new RuntimeException('Administrator credentials are busy.');
+        $savedHash = pollyanna_admin_password_hash();
+        if ($expectedHash === null) {
+            if (is_file($configDirectory . '/admin_credentials.json')) throw new RuntimeException('Administrator credentials already exist.');
+        } elseif ($savedHash === null || !hash_equals($expectedHash, $savedHash)
+            || $currentPassword === null || strlen($currentPassword) > 1024 || !password_verify($currentPassword, $savedHash)) {
+            throw new RuntimeException('Administrator credentials changed or verification failed.');
+        }
+        $hash = AdminPasswordPolicy::hash($password);
+        $temporaryPath = tempnam($configDirectory, '.admin-credentials-');
+        if ($temporaryPath === false) {
             throw new RuntimeException('Pollyanna admin credentials could not be saved.');
         }
-        if (!rename($temporaryPath, $configDirectory . '/admin_credentials.json')) {
+        $json = json_encode(['password_hash' => $hash], JSON_THROW_ON_ERROR) . PHP_EOL;
+        if (@file_put_contents($temporaryPath, $json, LOCK_EX) !== strlen($json)) {
+            throw new RuntimeException('Pollyanna admin credentials could not be saved.');
+        }
+        if ($expectedHash === null) {
+            $destination = @fopen($configDirectory . '/admin_credentials.json', 'x');
+            if ($destination === false) throw new RuntimeException('Administrator credentials already exist.');
+            try {
+                if (fwrite($destination, $json) !== strlen($json) || !fflush($destination)) throw new RuntimeException('Administrator credentials could not be saved.');
+            } finally { fclose($destination); }
+        } elseif (!@rename($temporaryPath, $configDirectory . '/admin_credentials.json')) {
             throw new RuntimeException('Pollyanna admin credentials could not be saved.');
         }
     } finally {
-        if (is_file($temporaryPath)) unlink($temporaryPath);
+        if (is_string($temporaryPath) && is_file($temporaryPath)) unlink($temporaryPath);
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }

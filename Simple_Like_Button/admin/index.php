@@ -18,19 +18,9 @@ session_start();
 
 $catalog = pollyanna_admin_catalog();
 $savedLanguage = pollyanna_admin_language();
-$requestedLanguage = $_GET['language'] ?? $savedLanguage;
+$requestedLanguage = $_GET['language'] ?? $_SESSION['pollyanna_login_language'] ?? $savedLanguage;
 $language = is_string($requestedLanguage) && isset($catalog[$requestedLanguage]) ? $requestedLanguage : $savedLanguage;
-$languageSaveFailed = false;
-if (isset($_GET['language']) && $language !== $savedLanguage) {
-    try {
-        pollyanna_save_admin_language($language);
-    } catch (Throwable $error) {
-        error_log('Pollyanna admin language save failed: ' . $error->getMessage());
-        $language = $savedLanguage;
-        $languageSaveFailed = true;
-    }
-}
-$_SESSION['pollyanna_admin_language'] = $language;
+$languageSaveError = '';
 $ui = $catalog[$language]['admin_ui'] ?? null;
 if (!is_array($ui)) {
     throw new RuntimeException('Pollyanna admin interface translations are missing.');
@@ -53,23 +43,11 @@ if ($installerLockActive) {
     <?php
     exit;
 }
-$languageSaveError = $languageSaveFailed ? (string) $ui['language_save_error'] : '';
 $savedTheme = pollyanna_admin_theme();
-$requestedTheme = $_GET['theme'] ?? $savedTheme;
-$theme = is_string($requestedTheme) && in_array($requestedTheme, pollyanna_admin_themes(), true)
-    ? $requestedTheme
-    : $savedTheme;
-$themeSaveFailed = false;
-if (isset($_GET['theme']) && $theme !== $savedTheme) {
-    try {
-        pollyanna_save_admin_theme($theme);
-    } catch (Throwable $error) {
-        error_log('Pollyanna admin theme save failed: ' . $error->getMessage());
-        $theme = $savedTheme;
-        $themeSaveFailed = true;
-    }
-}
-$themeSaveError = $themeSaveFailed ? (string) $ui['theme_save_error'] : '';
+$requestedTheme = $_GET['theme'] ?? $_SESSION['pollyanna_login_theme'] ?? $savedTheme;
+$theme = is_string($requestedTheme) && in_array($requestedTheme, pollyanna_admin_themes(), true) ? $requestedTheme : $savedTheme;
+$themeSaveError = '';
+header('Cache-Control: no-store');
 
 if (!isset($_SESSION['pollyanna_csrf_token']) || !is_string($_SESSION['pollyanna_csrf_token'])) {
     $_SESSION['pollyanna_csrf_token'] = bin2hex(random_bytes(32));
@@ -83,6 +61,18 @@ try {
     $adminPasswordHash = null;
     $authenticationError = (string) $ui['authentication_error'];
 }
+$isAuthenticated = ($_SESSION['pollyanna_admin_authenticated'] ?? false) === true;
+if ($isAuthenticated && ($adminPasswordHash === null || !is_string($_SESSION['pollyanna_admin_credential_stamp'] ?? null)
+    || !hash_equals(hash('sha256', $adminPasswordHash), $_SESSION['pollyanna_admin_credential_stamp']))) {
+    unset($_SESSION['pollyanna_admin_authenticated'], $_SESSION['pollyanna_admin_credential_stamp']);
+    session_regenerate_id(true);
+    $_SESSION['pollyanna_csrf_token'] = $csrfToken = bin2hex(random_bytes(32));
+    $isAuthenticated = false;
+}
+if (!$isAuthenticated) {
+    $_SESSION['pollyanna_login_language'] = $language;
+    $_SESSION['pollyanna_login_theme'] = $theme;
+}
 $authAction = $_POST['action'] ?? '';
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['admin_setup', 'admin_login', 'admin_logout'], true)) {
     $postedToken = $_POST['csrf_token'] ?? '';
@@ -90,11 +80,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['adm
         http_response_code(403);
         $authenticationError = (string) ($catalog[$language]['csrf_error'] ?? $ui['authentication_error']);
     } elseif ($authAction === 'admin_logout') {
-        unset($_SESSION['pollyanna_admin_authenticated']);
+        unset($_SESSION['pollyanna_admin_authenticated'], $_SESSION['pollyanna_admin_credential_stamp']);
         session_regenerate_id(true);
         header('Location: ./');
         exit;
-    } elseif ($authAction === 'admin_setup' && $adminPasswordHash === null && $isLocalRequest) {
+    } elseif ($authAction === 'admin_setup' && $adminPasswordHash === null && $isLocalRequest && !file_exists($installerCredentialsPath)) {
         $password = $_POST['password'] ?? '';
         $confirmation = $_POST['password_confirmation'] ?? '';
         if (!is_string($password) || !is_string($confirmation) || $password !== $confirmation) {
@@ -104,6 +94,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['adm
                 pollyanna_save_admin_password($password);
                 session_regenerate_id(true);
                 $_SESSION['pollyanna_admin_authenticated'] = true;
+                $_SESSION['pollyanna_admin_credential_stamp'] = hash('sha256', (string) pollyanna_admin_password_hash());
+                unset($_SESSION['pollyanna_login_language'], $_SESSION['pollyanna_login_theme']);
                 $_SESSION['pollyanna_csrf_token'] = bin2hex(random_bytes(32));
                 header('Location: ./');
                 exit;
@@ -127,9 +119,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['adm
             $authenticationError = (string) $ui['login_limited'];
         } else {
             $password = $_POST['password'] ?? '';
-            if (is_string($password) && password_verify($password, $adminPasswordHash)) {
+            if (is_string($password) && strlen($password) <= 1024 && password_verify($password, $adminPasswordHash)) {
                 session_regenerate_id(true);
                 $_SESSION['pollyanna_admin_authenticated'] = true;
+                $_SESSION['pollyanna_admin_credential_stamp'] = hash('sha256', (string) pollyanna_admin_password_hash());
+                unset($_SESSION['pollyanna_login_language'], $_SESSION['pollyanna_login_theme']);
                 $_SESSION['pollyanna_csrf_token'] = bin2hex(random_bytes(32));
                 unset($_SESSION['pollyanna_login_window'], $_SESSION['pollyanna_login_attempts']);
                 header('Location: ./');
@@ -143,13 +137,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['adm
 }
 $isAuthenticated = ($_SESSION['pollyanna_admin_authenticated'] ?? false) === true;
 if (!$isAuthenticated) {
-    $setupAvailable = $adminPasswordHash === null && $isLocalRequest;
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !in_array($authAction, ['admin_setup', 'admin_login', 'admin_logout'], true)) {
+        http_response_code(403);
+        $authenticationError = $ui['authentication_required'];
+    }
+    if (($_SESSION['pollyanna_password_changed'] ?? false) === true) {
+        $authenticationError = $ui['password_changed'];
+        unset($_SESSION['pollyanna_password_changed']);
+    }
+    $setupAvailable = $adminPasswordHash === null && $isLocalRequest && !file_exists($installerCredentialsPath);
     if ($adminPasswordHash === null && !$isLocalRequest) http_response_code(403);
     $authTitle = $setupAvailable ? $ui['admin_setup'] : $ui['admin_login'];
     $authDescription = $setupAvailable ? $ui['password_requirement'] : ($adminPasswordHash === null ? $ui['setup_local_only'] : '');
     $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     ?>
-    <!doctype html><html lang="<?= $escape($language) ?>" data-theme="<?= $escape($theme) ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pollyanna — <?= $escape($authTitle) ?></title><link rel="stylesheet" href="../assets/admin.css"></head><body class="auth-page"><main class="auth-main"><section class="panel auth-card"><div class="brand-line"><span class="heart" aria-hidden="true">♥</span><span class="brand">Pollyanna</span></div><h1><?= $escape($authTitle) ?></h1><?php if ($authDescription !== ''): ?><p class="muted"><?= $escape($authDescription) ?></p><?php endif ?><?php if ($authenticationError !== ''): ?><div class="notice settings-error" role="alert"><?= $escape($authenticationError) ?></div><?php endif ?><?php if ($adminPasswordHash !== null || $setupAvailable): ?><form method="post" class="auth-form"><input type="hidden" name="csrf_token" value="<?= $escape($csrfToken) ?>"><input type="hidden" name="action" value="<?= $setupAvailable ? 'admin_setup' : 'admin_login' ?>"><label for="admin-password"><?= $escape($ui['password']) ?><input id="admin-password" name="password" type="password" minlength="12" maxlength="1024" required autocomplete="<?= $setupAvailable ? 'new-password' : 'current-password' ?>"></label><?php if ($setupAvailable): ?><label for="admin-password-confirmation"><?= $escape($ui['password_confirmation']) ?><input id="admin-password-confirmation" name="password_confirmation" type="password" minlength="12" maxlength="1024" required autocomplete="new-password"></label><?php endif ?><label class="password-toggle"><input type="checkbox" data-password-toggle> <?= $escape($ui['show_password']) ?></label><button class="primary" type="submit"><?= $escape($setupAvailable ? $ui['create_password'] : $ui['login']) ?></button></form><?php endif ?></section></main><script src="../assets/admin.js"></script></body></html>
+    <!doctype html><html lang="<?= $escape($language) ?>" data-theme="<?= $escape($theme) ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pollyanna — <?= $escape($authTitle) ?></title><link rel="stylesheet" href="../assets/admin.css"></head><body class="auth-page"><main class="auth-main"><section class="panel auth-card"><div class="brand-line"><span class="heart" aria-hidden="true">♥</span><span class="brand">Pollyanna</span></div><h1><?= $escape($authTitle) ?></h1><?php if ($authDescription !== ''): ?><p class="muted"><?= $escape($authDescription) ?></p><?php endif ?><?php if ($authenticationError !== ''): ?><div class="notice settings-error" role="alert"><?= $escape($authenticationError) ?></div><?php endif ?><?php if ($adminPasswordHash !== null || $setupAvailable): ?><form method="post" class="auth-form" data-password-rule="<?= $escape($ui['password_requirement']) ?>"><input type="hidden" name="csrf_token" value="<?= $escape($csrfToken) ?>"><input type="hidden" name="action" value="<?= $setupAvailable ? 'admin_setup' : 'admin_login' ?>"><label for="admin-password"><?= $escape($ui['password']) ?><input id="admin-password" name="password" type="password" <?= $setupAvailable ? 'data-new-admin-password' : '' ?> maxlength="1024" required autocomplete="<?= $setupAvailable ? 'new-password' : 'current-password' ?>"></label><?php if ($setupAvailable): ?><label for="admin-password-confirmation"><?= $escape($ui['password_confirmation']) ?><input id="admin-password-confirmation" name="password_confirmation" type="password" data-new-admin-password maxlength="72" required autocomplete="new-password"></label><?php endif ?><label class="password-toggle"><input type="checkbox" data-password-toggle> <?= $escape($ui['show_password']) ?></label><button class="primary" type="submit"><?= $escape($setupAvailable ? $ui['create_password'] : $ui['login']) ?></button></form><?php endif ?></section></main><script src="../assets/admin.js"></script></body></html>
     <?php
     exit;
 }
@@ -157,6 +159,12 @@ $settingsResult = isset($_SESSION['pollyanna_settings_result']) && is_string($_S
     ? $_SESSION['pollyanna_settings_result']
     : '';
 unset($_SESSION['pollyanna_settings_result']);
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && ($_GET['view'] ?? '') === 'widget-test') {
+    define('POLLYANNA_AUTHENTICATED_WIDGET_TEST', true);
+    require __DIR__ . '/widget-test-view.php';
+    exit;
+}
+
 $settingsError = '';
 $accessSettings = AccessProtectionService::defaults();
 $accessError = '';
@@ -202,6 +210,62 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (!is_string($postedToken) || !hash_equals($csrfToken, $postedToken)) {
         http_response_code(403);
         $settingsError = (string) ($catalog[$language]['csrf_error'] ?? $ui['settings_save_error']);
+    } elseif (in_array($action, ['save_admin_language', 'save_admin_theme'], true)) {
+        try {
+            if ($action === 'save_admin_language') {
+                $value = $_POST['language'] ?? null;
+                if (!is_string($value)) throw new InvalidArgumentException('Invalid language.');
+                pollyanna_save_admin_language($value);
+            } else {
+                $value = $_POST['theme'] ?? null;
+                if (!is_string($value)) throw new InvalidArgumentException('Invalid theme.');
+                pollyanna_save_admin_theme($value);
+            }
+            header('Location: ?tab=' . ($action === 'save_admin_language' ? 'dashboard' : 'admin-operation'), true, 303);
+            exit;
+        } catch (Throwable) {
+            http_response_code(422);
+            $settingsError = $ui['settings_save_error'];
+        }
+    } elseif ($action === 'change_admin_password') {
+        $now = time();
+        $window = $_SESSION['pollyanna_password_change_window'] ?? 0;
+        if (!is_int($window) || $now - $window >= 60) {
+            $_SESSION['pollyanna_password_change_window'] = $now;
+            $_SESSION['pollyanna_password_change_attempts'] = 0;
+        }
+        if (($_SESSION['pollyanna_password_change_attempts'] ?? 0) >= 5) {
+            http_response_code(429);
+            $settingsError = $ui['password_change_limited'];
+        } else {
+            $_SESSION['pollyanna_password_change_attempts'] = (int) ($_SESSION['pollyanna_password_change_attempts'] ?? 0) + 1;
+            $current = $_POST['current_password'] ?? null;
+            $new = $_POST['new_password'] ?? null;
+            $confirmation = $_POST['new_password_confirmation'] ?? null;
+            if (!is_string($current) || strlen($current) > 1024 || !password_verify($current, (string) $adminPasswordHash)) {
+                http_response_code(422);
+                $settingsError = $ui['current_password_invalid'];
+            } elseif (!is_string($new) || !AdminPasswordPolicy::isValid($new)) {
+                http_response_code(422);
+                $settingsError = $ui['password_requirement'];
+            } elseif (!is_string($confirmation) || $new !== $confirmation) {
+                http_response_code(422);
+                $settingsError = $ui['password_mismatch'];
+            } else {
+                try {
+                    pollyanna_save_admin_password($new, $current, $adminPasswordHash);
+                    $_SESSION = [];
+                    session_regenerate_id(true);
+                    $_SESSION['pollyanna_password_changed'] = true;
+                    $_SESSION['pollyanna_csrf_token'] = bin2hex(random_bytes(32));
+                    header('Location: ./', true, 303);
+                    exit;
+                } catch (Throwable) {
+                    http_response_code(422);
+                    $settingsError = $ui['password_change_failed'];
+                }
+            }
+        }
     } elseif (in_array($action, ['save_access_protection', 'release_access_block'], true)) {
         try {
             $accessService = new AccessProtectionService(pollyanna_pdo());
@@ -657,7 +721,7 @@ try {
         $monthly[$key] = 0;
         $monthlyLabels[] = $language === 'ja' ? $month->format('n') . '月' : $month->format('M');
     }
-    $statement = $pdo->prepare("SELECT period_start, like_count FROM pollyanna_period_aggregates WHERE period_type = 'day' AND period_start >= :start");
+    $statement = $pdo->prepare("SELECT period_start, like_count FROM pollyanna_period_aggregates WHERE period_type IN ('day', 'month') AND period_start >= :start");
     $statement->execute([':start' => $monthStart->format('Y-m-d')]);
     foreach ($statement->fetchAll() as $row) {
         $key = substr((string) $row['period_start'], 0, 7);
@@ -697,7 +761,7 @@ $activeTab = $_GET['tab'] ?? 'dashboard';
 if ($activeTab === 'settings') $activeTab = 'admin-operation';
 if (!is_string($activeTab) || !in_array($activeTab, ['dashboard', 'details', 'admin-operation', 'public-display', 'access-protection'], true)) $activeTab = 'dashboard';
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && $settingsError !== '') {
-    $activeTab = in_array($action ?? '', ['save_access_protection', 'release_access_block'], true) ? 'access-protection' : (($action ?? '') === 'save_public_display' ? 'public-display' : 'admin-operation');
+    $activeTab = ($action ?? '') === 'save_admin_language' ? 'dashboard' : (in_array($action ?? '', ['save_access_protection', 'release_access_block'], true) ? 'access-protection' : (($action ?? '') === 'save_public_display' ? 'public-display' : 'admin-operation'));
 }
 $retrievedAt = (new DateTimeImmutable('now', new DateTimeZone($settings['timezone'])))->format('Y-m-d H:i');
 $dailyPeriod = $language === 'ja' ? $dailyStart->format('Y/n/j') . '〜' . $today->format('n/j') : $dailyStart->format('M j, Y') . ' – ' . $today->format('M j');
@@ -713,7 +777,7 @@ try {
     $historyPage = filter_var($_GET['access_page'] ?? 1, FILTER_VALIDATE_INT);
     $accessOverview = $accessService->overview($accessSettings, is_int($historyPage) ? $historyPage : 1, $accessPageSize);
 } catch (Throwable) {
-    $accessError = $language === 'ja' ? '集中アクセス検知を利用できません。DB接続と upgrade-access-protection.sql の適用を確認してください。' : 'Access protection unavailable. Check the database and apply upgrade-access-protection.sql.';
+    $accessError = $language === 'ja' ? '集中アクセス検知を利用できません。DB接続と集中アクセス検知用テーブルの存在を確認してください。新規導入が途中の場合は、既存データを保持してインストーラーの復旧案内を確認してください。' : 'Access protection unavailable. Check database connectivity and the required access protection tables. If a new installation is incomplete, preserve existing data and consult the installer recovery instructions.';
 }
 ?>
 <!doctype html>
@@ -731,13 +795,14 @@ try {
         <div class="header-tools"><span class="badge">● <?= admin_h($systemState === 'maintenance' ? $ui['maintenance'] : $ui['online']) ?></span><form method="post"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="admin_logout"><button class="logout-button" type="submit"><?= admin_h($ui['logout']) ?></button></form></div>
     </div>
     <div class="notice"><?= admin_h($ui['local_only']) ?></div>
+    <p><a href="?view=widget-test"><?= admin_h($ui['widget_test_title']) ?></a></p>
     <nav role="tablist" aria-label="<?= admin_h($ui['page_title']) ?>">
         <?php foreach (['dashboard' => 'dashboard', 'details' => 'details', 'admin-operation' => 'admin_operation_settings', 'public-display' => 'public_display_settings', 'access-protection' => 'access_protection'] as $tab => $labelKey): ?><button id="tab-<?= $tab ?>" type="button" role="tab" data-admin-tab="<?= $tab ?>" aria-controls="panel-<?= $tab ?>" aria-selected="<?= $activeTab === $tab ? 'true' : 'false' ?>" tabindex="<?= $activeTab === $tab ? '0' : '-1' ?>"><?= admin_h($ui[$labelKey]) ?></button><?php endforeach ?>
     </nav>
 </header>
 <main>
     <section id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" data-admin-panel="dashboard" <?= $activeTab === 'dashboard' ? '' : 'hidden' ?>>
-        <div class="heading dashboard-heading"><div><h1><?= admin_h($ui['dashboard']) ?></h1><p class="muted"><?= admin_h($ui['dashboard_intro']) ?></p></div><aside class="system-info"><h2><?= admin_h($ui['system_information']) ?></h2><dl class="facts"><div><dt><?= admin_h($ui['version']) ?></dt><dd><?= admin_h($ui['development_version']) ?></dd></div><div><dt><?= admin_h($ui['system_status']) ?></dt><dd><?= admin_h($systemState === 'maintenance' ? $ui['maintenance'] : 'ON') ?></dd></div><div><dt><?= admin_h($ui['aggregation_timezone']) ?></dt><dd><?= admin_h($settings['timezone']) ?></dd></div><div><dt><?= admin_h($ui['retrieved_at']) ?></dt><dd><?= admin_h($retrievedAt) ?></dd></div><div><dt><?= admin_h($ui['admin_language']) ?></dt><dd><form class="language-form" method="get"><input type="hidden" name="tab" value="dashboard"><select data-language-select name="language" aria-label="<?= admin_h($ui['admin_language']) ?>"><?php foreach ($catalog as $code => $locale): ?><option value="<?= admin_h($code) ?>" <?= $language === $code ? 'selected' : '' ?>><?= admin_h($locale['language_name']) ?></option><?php endforeach ?></select></form></dd></div></dl><?php if ($languageSaveError !== ''): ?><p class="result" role="status"><?= admin_h($languageSaveError) ?></p><?php endif ?></aside></div>
+        <div class="heading dashboard-heading"><div><h1><?= admin_h($ui['dashboard']) ?></h1><p class="muted"><?= admin_h($ui['dashboard_intro']) ?></p></div><aside class="system-info"><h2><?= admin_h($ui['system_information']) ?></h2><dl class="facts"><div><dt><?= admin_h($ui['version']) ?></dt><dd><?= admin_h($ui['development_version']) ?></dd></div><div><dt><?= admin_h($ui['system_status']) ?></dt><dd><?= admin_h($systemState === 'maintenance' ? $ui['maintenance'] : 'ON') ?></dd></div><div><dt><?= admin_h($ui['aggregation_timezone']) ?></dt><dd><?= admin_h($settings['timezone']) ?></dd></div><div><dt><?= admin_h($ui['retrieved_at']) ?></dt><dd><?= admin_h($retrievedAt) ?></dd></div><div><dt><?= admin_h($ui['admin_language']) ?></dt><dd><form class="language-form" method="post"><input type="hidden" name="action" value="save_admin_language"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="tab" value="dashboard"><select data-language-select name="language" aria-label="<?= admin_h($ui['admin_language']) ?>"><?php foreach ($catalog as $code => $locale): ?><option value="<?= admin_h($code) ?>" <?= $language === $code ? 'selected' : '' ?>><?= admin_h($locale['language_name']) ?></option><?php endforeach ?></select></form></dd></div></dl><?php if ($languageSaveError !== ''): ?><p class="result" role="status"><?= admin_h($languageSaveError) ?></p><?php endif ?></aside></div>
         <?php if ($dashboardError !== ''): ?><div class="notice"><?= admin_h($dashboardError) ?></div><?php endif ?>
         <div class="cards"><div class="card"><div class="label"><?= admin_h($ui['total_likes']) ?></div><div class="number"><?= number_format($total) ?></div><div class="muted"><?= admin_h($ui['aggregated_and_pending']) ?></div></div><div class="card"><div class="label"><?= admin_h($ui['aggregated']) ?></div><div class="number"><?= number_format($aggregated) ?></div><div class="muted"><?= admin_h($ui['lifetime_total']) ?></div></div><div class="card"><div class="label"><?= admin_h($ui['pending']) ?></div><div class="number"><?= number_format($pending) ?></div><div class="muted"><?= admin_h($ui['awaiting_aggregation']) ?></div></div><div class="card"><div class="label"><?= admin_h($ui['like_ids']) ?></div><div class="number"><?= number_format($likeIds) ?></div><div class="muted"><?= admin_h($ui['including_aggregated_pending']) ?></div></div></div>
         <section class="aggregation-actions" aria-labelledby="aggregation-actions-title"><div><h2 id="aggregation-actions-title"><?= admin_h($ui['aggregation_actions']) ?></h2><p class="muted"><?= admin_h(sprintf($ui['aggregation_access_help'], number_format((int) $settings['aggregation_batch_size']))) ?></p></div><form method="post"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="manual_aggregate"><button class="primary" type="submit"><?= admin_h($ui['manual_aggregation']) ?></button></form></section>
@@ -765,7 +830,7 @@ try {
             </aside>
             <section class="panel settings-card">
                 <h2><?= admin_h($ui['admin_operation_settings']) ?></h2>
-                <form class="theme-form" method="get"><input type="hidden" name="tab" value="admin-operation"><div class="field"><label for="admin-theme"><?= admin_h($ui['admin_theme']) ?></label><p class="field-help"><?= admin_h($language === 'ja' ? '色別テーマは白基調です。システムは端末のライト／ダーク設定に追従します。' : 'Color themes use a white base. System follows the device light/dark preference.') ?></p><select id="admin-theme" data-theme-select name="theme"><?php foreach (pollyanna_admin_themes() as $themeCode): ?><option value="<?= admin_h($themeCode) ?>" <?= $theme === $themeCode ? 'selected' : '' ?>><?= admin_h($ui['themes'][$themeCode]) ?></option><?php endforeach ?></select></div></form>
+                <form class="theme-form" method="post"><input type="hidden" name="action" value="save_admin_theme"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="tab" value="admin-operation"><div class="field"><label for="admin-theme"><?= admin_h($ui['admin_theme']) ?></label><p class="field-help"><?= admin_h($language === 'ja' ? '色別テーマは白基調です。システムは端末のライト／ダーク設定に追従します。' : 'Color themes use a white base. System follows the device light/dark preference.') ?></p><select id="admin-theme" data-theme-select name="theme"><?php foreach (pollyanna_admin_themes() as $themeCode): ?><option value="<?= admin_h($themeCode) ?>" <?= $theme === $themeCode ? 'selected' : '' ?>><?= admin_h($ui['themes'][$themeCode]) ?></option><?php endforeach ?></select></div></form>
                 <?php if ($themeSaveError !== ''): ?><p class="result" role="status"><?= admin_h($themeSaveError) ?></p><?php endif ?>
                 <form method="post" data-settings-form="admin-operation" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>"><input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>"><input type="hidden" name="action" value="save_admin_operation">
                     <div class="field"><label for="system-state"><?= admin_h($catalog[$language]['system_state']) ?></label><p class="field-help"><?= admin_h($ui['maintenance_help']) ?></p><select id="system-state" name="system_state"><?php foreach ($catalog[$language]['system_states'] as $stateCode => $stateLabel): ?><option value="<?= admin_h($stateCode) ?>" <?= $formSystemState === $stateCode ? 'selected' : '' ?>><?= admin_h($stateLabel) ?></option><?php endforeach ?></select></div>
@@ -801,6 +866,19 @@ try {
             </section>
         </section>
 
+        <section class="panel settings-card password-change-card">
+            <h2><?= admin_h($ui['change_admin_password']) ?></h2>
+            <p class="field-help"><?= admin_h($ui['password_requirement']) ?></p>
+            <p class="field-help"><?= admin_h($ui['password_change_help']) ?></p>
+            <form method="post" data-settings-form="admin-password" data-unsaved-text="<?= admin_h($ui['unsaved_changes']) ?>" data-password-rule="<?= admin_h($ui['password_requirement']) ?>">
+                <input type="hidden" name="action" value="change_admin_password">
+                <input type="hidden" name="csrf_token" value="<?= admin_h($csrfToken) ?>">
+                <div class="field"><label for="current-password"><?= admin_h($ui['current_password']) ?></label><input id="current-password" name="current_password" type="password" maxlength="1024" autocomplete="current-password" required></div>
+                <div class="field"><label for="new-password"><?= admin_h($ui['new_password']) ?></label><input id="new-password" name="new_password" type="password" maxlength="72" autocomplete="new-password" data-new-admin-password required></div>
+                <div class="field"><label for="new-password-confirmation"><?= admin_h($ui['new_password_confirmation']) ?></label><input id="new-password-confirmation" name="new_password_confirmation" type="password" maxlength="72" autocomplete="new-password" data-new-admin-password required></div>
+                <div class="save-row"><button class="primary" type="submit"><?= admin_h($ui['change_admin_password']) ?></button><span class="save-status" data-save-status><?= admin_h($ui['no_changes']) ?></span></div>
+            </form>
+        </section>
     </section>
     <section id="panel-public-display" class="settings-panel" role="tabpanel" aria-labelledby="tab-public-display" data-admin-panel="public-display" <?= $activeTab === 'public-display' ? '' : 'hidden' ?>>
         <div class="heading settings-heading"><h1><?= admin_h($ui['public_display_settings']) ?></h1></div>

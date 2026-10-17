@@ -37,6 +37,7 @@ final class AggregationService
             if ($events === []) {
                 $this->compactPeriodAggregates($batchSize, $timezone);
                 $this->pdo->commit();
+                $this->pruneExpiredRateLimitEvents($batchSize);
                 return 0;
             }
 
@@ -106,6 +107,7 @@ final class AggregationService
             $this->compactPeriodAggregates($batchSize, $timezone);
 
             $this->pdo->commit();
+            $this->pruneExpiredRateLimitEvents($batchSize);
             return count($eventIds);
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) {
@@ -119,6 +121,20 @@ final class AggregationService
             } catch (Throwable $releaseError) {
                 error_log('Pollyanna aggregation lock release failed: ' . $releaseError->getMessage());
             }
+        }
+    }
+
+    private function pruneExpiredRateLimitEvents(int $batchSize): void
+    {
+        // Run only after aggregation commits. Never delete a still-active quota event.
+        // A bounded, autocommit deletion cannot roll back completed aggregation.
+        try {
+            $this->pdo->exec('DELETE FROM pollyanna_rate_limit_events '
+                . 'WHERE created_at <= UTC_TIMESTAMP(6) - INTERVAL 24 HOUR '
+                . 'ORDER BY id ASC LIMIT ' . $batchSize);
+        } catch (Throwable) {
+            // Retry on a later aggregation; do not fail the public Like response.
+            error_log('Pollyanna expired rate-limit cleanup failed; deferred until a later aggregation.');
         }
     }
 
