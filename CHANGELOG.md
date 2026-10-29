@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## v1.0.0-beta1
+
+- Prepared the beta release with Japanese and English installation guides and GPL-3.0-only licensing.
+- Added Origin/CORS settings, configurable button symbols and colors, and a display preview.
+- Added access anomaly detection, temporary blocking, and administration controls.
+- Improved administrator password handling and concurrent installer execution and recovery.
+- Fixed aggregation regressions and added an allowlisted release ZIP build script.
+
 ## v0.4.1 Installer Guide
 
 - Added a beginner-oriented Welcome screen before the environment check.
