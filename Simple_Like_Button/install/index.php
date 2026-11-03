@@ -8,6 +8,7 @@ $completionPath = $root . '/config/install_complete.json';
 require_once $root . '/src/OriginPolicy.php';
 require_once $root . '/src/InstallerState.php';
 require_once $root . '/src/AdminPasswordPolicy.php';
+require_once $root . '/src/InstallerConfig.php';
 $isHttps = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 session_name('pollyanna_installer');
 session_set_cookie_params(['httponly' => true, 'secure' => $isHttps, 'samesite' => 'Strict']);
@@ -260,6 +261,22 @@ $messages = [
     ],
 ];
 
+$messages['ja'] += [
+    'admin_environment' => '管理画面の利用環境（選択必須）', 'admin_environment_choose' => '選択してください',
+    'admin_production' => '本番環境（HTTPS必須）', 'admin_development' => 'ローカル開発環境（直接ループバック接続のみ）',
+    'admin_origin' => '管理画面のOrigin', 'admin_path' => '管理画面のパス（自動算出）',
+    'admin_security_help' => '本番はHTTPSのOriginを入力してください。HTTPのローカル開発は明示選択と確認が必要です。ホスト名だけで自動判定しません。',
+    'admin_development_confirm' => '公開・LAN・トンネル用ではなく、この端末から直接接続するローカル開発環境であることを確認しました。',
+    'admin_security_error' => '管理環境・Origin・パスを確認してください。本番はHTTPS必須です。開発HTTPは確認済みの直接ループバック接続のみ許可します。',
+];
+$messages['en'] += [
+    'admin_environment' => 'Admin environment (required)', 'admin_environment_choose' => 'Select an environment',
+    'admin_production' => 'Production (HTTPS required)', 'admin_development' => 'Local development (direct loopback only)',
+    'admin_origin' => 'Admin origin', 'admin_path' => 'Admin path (derived automatically)',
+    'admin_security_help' => 'Enter an HTTPS origin for production. Local HTTP development requires explicit selection and confirmation. Hostnames never select development automatically.',
+    'admin_development_confirm' => 'I confirm this is direct local development on this computer, not a public, LAN or tunnel deployment.',
+    'admin_security_error' => 'Verify the admin environment, origin and path. Production requires HTTPS; development HTTP requires confirmed direct loopback access.',
+];
 $requestedLanguage = $_GET['language'] ?? $_POST['language'] ?? $_SESSION['installer_language'] ?? 'ja';
 $language = is_string($requestedLanguage) && isset($messages[$requestedLanguage]) ? $requestedLanguage : 'ja';
 $_SESSION['installer_language'] = $language;
@@ -323,36 +340,7 @@ function installer_has_completion_marker(string $path): bool
 
 function installer_config_contents(array $database, array $basic, string $secret): string
 {
-    $config = [
-        'database' => [
-            'dsn' => $database['dsn'],
-            'username' => $database['user'],
-            'password' => $database['password'],
-        ],
-        'app_secret' => $secret,
-        'site_origin' => $basic['site_origin'],
-        'site_base_domain' => $basic['site_base_domain'],
-        'site_base_domain_include_subdomains' => $basic['site_base_domain_include_subdomains'],
-        'system_state' => 'enabled',
-        'access_protection' => ['enabled' => true, 'auto_block' => true,
-            'state' => ['window' => 60, 'threshold' => 2400],
-            'like' => ['window' => 60, 'threshold' => 240]],
-        'admin_language' => 'ja',
-        'admin_theme' => 'green',
-        'widget_language' => 'ja',
-        'click_success_message' => 'like02',
-        'show_like_count' => false,
-        'like_count_color' => '#767676',
-        'button_symbol_preset' => 'heart',
-        'button_unliked_color' => '#666666',
-        'button_liked_color' => '#e53955',
-        'count_refresh_interval' => 5,
-        'likes_per_24_hours' => 3,
-        'aggregation_start_threshold' => 1000,
-        'aggregation_batch_size' => 500,
-        'timezone' => $basic['timezone'],
-    ];
-    return "<?php\ndeclare(strict_types=1);\n\nreturn " . var_export($config, true) . ";\n";
+    return InstallerConfig::contents($database, $basic, $secret, $_SERVER);
 }
 
 $installationState = PollyannaInstallerState::detect($configPath, $credentialsPath, $completionPath);
@@ -385,6 +373,11 @@ try {
     $candidateOrigin = '';
     $candidateBaseDomain = '';
 }
+$candidateAdminPath = '';
+try { $candidateAdminPath = InstallerConfig::adminPath($_SERVER); } catch (Throwable) {}
+$checks[] = ['label' => $ui['admin_path'], 'ok' => $candidateAdminPath !== '',
+    'detail' => $candidateAdminPath !== '' ? $candidateAdminPath : $ui['admin_security_error']];
+$environmentReady = !in_array(false, array_column($checks, 'ok'), true);
 $dbForm = [
     'host' => is_string($_POST['db_host'] ?? null) ? trim($_POST['db_host']) : (string) ($_SESSION['installer_database']['host'] ?? 'localhost'),
     'port' => is_string($_POST['db_port'] ?? null) ? trim($_POST['db_port']) : (string) ($_SESSION['installer_database']['port'] ?? '3306'),
@@ -462,7 +455,18 @@ if ($requestMethod === 'POST') {
             $siteOriginObject = null;
             $baseDomain = '';
         }
-        if (!$siteOriginObject instanceof PollyannaOrigin || $baseDomain === '') {
+        $adminSecurity = null;
+        $developmentConfirmed = ($_POST['admin_development_confirmed'] ?? '') === '1';
+        try {
+            $adminSecurity = InstallerConfig::adminSettings(
+                is_string($_POST['admin_environment'] ?? null) ? $_POST['admin_environment'] : '',
+                is_string($_POST['admin_origin'] ?? null) ? $_POST['admin_origin'] : '',
+                is_string($_POST['admin_path'] ?? null) ? $_POST['admin_path'] : '',
+                $developmentConfirmed, $_SERVER);
+        } catch (Throwable) {}
+        if ($adminSecurity === null) {
+            $error = $ui['admin_security_error'];
+        } elseif (!$siteOriginObject instanceof PollyannaOrigin || $baseDomain === '') {
             $error = $ui['origin_invalid'];
         } elseif (!in_array($timezone, DateTimeZone::listIdentifiers(), true)) {
             $error = $ui['timezone_invalid'];
@@ -471,7 +475,8 @@ if ($requestMethod === 'POST') {
         } elseif (!hash_equals($password, $confirmation)) {
             $error = $ui['password_mismatch'];
         } else {
-            $_SESSION['installer_basic'] = ['timezone' => $timezone, 'admin_password' => $password, 'site_origin' => $siteOriginObject->serialize(), 'site_base_domain' => $baseDomain, 'site_base_domain_include_subdomains' => $includeSubdomains];
+            $_SESSION['installer_basic'] = ['timezone' => $timezone, 'admin_password' => $password, 'site_origin' => $siteOriginObject->serialize(), 'site_base_domain' => $baseDomain, 'site_base_domain_include_subdomains' => $includeSubdomains,
+                'admin_security' => $adminSecurity, 'admin_development_confirmed' => $developmentConfirmed];
             $_SESSION['installer_step'] = 'confirmation';
             header('Location: ?step=confirmation&language=' . rawurlencode($language));
             exit;
@@ -481,7 +486,9 @@ if ($requestMethod === 'POST') {
         $database = $_SESSION['installer_database'];
         $basic = $_SESSION['installer_basic'];
         try {
-            PollyannaInstallerState::install($configPath, $credentialsPath, $completionPath, static function () use ($database, $basic, $configPath, $credentialsPath, $completionPath): void {
+            // Revalidate connection-bound development permission before any DB or marker writes.
+            $configContents = installer_config_contents($database, $basic, bin2hex(random_bytes(32)));
+            PollyannaInstallerState::install($configPath, $credentialsPath, $completionPath, static function () use ($database, $basic, $configContents, $configPath, $credentialsPath, $completionPath): void {
                 if (!is_array($database) || !is_array($basic)) throw new RuntimeException('Installer state is invalid.');
                 $pdo = new PDO((string) $database['dsn'], (string) $database['user'], (string) $database['password'], [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -497,14 +504,13 @@ if ($requestMethod === 'POST') {
                 }
                 $adminHash = AdminPasswordPolicy::hash((string) $basic['admin_password']);
                 if (!is_string($adminHash)) throw new RuntimeException('Admin password could not be hashed.');
-                $secret = bin2hex(random_bytes(32));
                 PollyannaInstallerState::createExclusive(
                     $credentialsPath,
                     json_encode(['password_hash' => $adminHash], JSON_THROW_ON_ERROR) . PHP_EOL
                 );
                 PollyannaInstallerState::createExclusive(
                     $configPath,
-                    installer_config_contents($database, $basic, $secret)
+                    $configContents
                 );
                 PollyannaInstallerState::writeCompletionMarker($completionPath);
             });
@@ -606,6 +612,16 @@ $currentStepIndex = $stepIndexes[$step] ?? 0;
             <?php if ($error !== ''): ?><div class="message error" role="alert"><?= installer_h($error) ?></div><?php endif ?>
             <form class="installer-form" method="post" data-password-rule="<?= installer_h($ui['password_requirement']) ?>"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="save_basic">
                 <?php $savedBasic = is_array($_SESSION['installer_basic'] ?? null) ? $_SESSION['installer_basic'] : []; ?>
+                <?php
+                $savedAdmin = is_array($savedBasic['admin_security'] ?? null) ? $savedBasic['admin_security'] : [];
+                $adminEnvironment = is_string($_POST['admin_environment'] ?? null) ? $_POST['admin_environment'] : ($savedAdmin['environment'] ?? '');
+                $adminOrigin = is_string($_POST['admin_origin'] ?? null) ? $_POST['admin_origin'] : ($savedAdmin['origin'] ?? $candidateOrigin);
+                $developmentChecked = $action === 'save_basic' ? (($_POST['admin_development_confirmed'] ?? '') === '1') : (($savedBasic['admin_development_confirmed'] ?? false) === true);
+                ?>
+                <div class="form-field"><label for="admin-environment"><?= installer_h($ui['admin_environment']) ?></label><select id="admin-environment" name="admin_environment" required><option value=""><?= installer_h($ui['admin_environment_choose']) ?></option><option value="production" <?= $adminEnvironment === 'production' ? 'selected' : '' ?>><?= installer_h($ui['admin_production']) ?></option><option value="development" <?= $adminEnvironment === 'development' ? 'selected' : '' ?>><?= installer_h($ui['admin_development']) ?></option></select><p class="field-description"><?= installer_h($ui['admin_security_help']) ?></p></div>
+                <div class="form-field"><label for="admin-origin"><?= installer_h($ui['admin_origin']) ?></label><input id="admin-origin" name="admin_origin" type="url" required value="<?= installer_h((string) $adminOrigin) ?>"></div>
+                <div class="form-field"><label for="admin-path"><?= installer_h($ui['admin_path']) ?></label><input id="admin-path" name="admin_path" type="text" required readonly value="<?= installer_h($candidateAdminPath) ?>"></div>
+                <label class="check-label"><input name="admin_development_confirmed" type="checkbox" value="1" <?= $developmentChecked ? 'checked' : '' ?>> <?= installer_h($ui['admin_development_confirm']) ?></label>
                 <div class="form-field"><label for="site-origin"><?= installer_h($ui['site_origin']) ?></label><p class="field-description"><?= installer_h($ui['site_origin_help']) ?></p><input id="site-origin" name="site_origin" type="url" required value="<?= installer_h((string) ($savedBasic['site_origin'] ?? $candidateOrigin)) ?>" data-origin-host-source></div>
                 <div class="form-field"><label for="site-base-domain"><?= installer_h($ui['site_base_domain']) ?></label><p class="field-description"><?= installer_h($ui['site_base_domain_help']) ?></p><input id="site-base-domain" name="site_base_domain" type="text" required value="<?= installer_h((string) ($savedBasic['site_base_domain'] ?? $candidateBaseDomain)) ?>"></div>
                 <label class="check-label"><input type="checkbox" name="site_base_domain_include_subdomains" value="1" <?= (($savedBasic['site_base_domain_include_subdomains'] ?? true) === true) ? 'checked' : '' ?> data-subdomain-toggle> <?= installer_h($ui['site_subdomains']) ?></label>
@@ -622,6 +638,8 @@ $currentStepIndex = $stepIndexes[$step] ?? 0;
             <?php $database = $_SESSION['installer_database']; $basic = $_SESSION['installer_basic']; ?>
             <dl class="summary-list"><div><dt><?= installer_h($ui['database_server']) ?></dt><dd><?= installer_h((string) $database['host'] . ':' . (string) $database['port']) ?></dd></div><div><dt><?= installer_h($ui['database_name']) ?></dt><dd><?= installer_h((string) $database['name']) ?></dd></div><div><dt><?= installer_h($ui['database_user']) ?></dt><dd><?= installer_h((string) $database['user']) ?></dd></div><div><dt><?= installer_h($ui['site_origin']) ?></dt><dd><?= installer_h((string) $basic['site_origin']) ?></dd></div><div><dt><?= installer_h($ui['site_base_domain']) ?></dt><dd><?= installer_h((string) $basic['site_base_domain']) ?></dd></div><div><dt><?= installer_h($ui['timezone']) ?></dt><dd><?= installer_h((string) $basic['timezone']) ?></dd></div></dl>
             <ul class="install-summary"><li><?= installer_h($ui['create_tables']) ?></li><li><?= installer_h($ui['generate_secret']) ?></li><li><?= installer_h($ui['save_admin_password']) ?></li><li><strong><?= installer_h($ui['lock_admin']) ?></strong></li></ul>
+            <?php $confirmedAdmin = is_array($basic['admin_security'] ?? null) ? $basic['admin_security'] : []; ?>
+            <dl class="summary-list"><div><dt><?= installer_h($ui['admin_environment']) ?></dt><dd><?= installer_h(($confirmedAdmin['environment'] ?? '') === 'development' ? $ui['admin_development'] : (($confirmedAdmin['environment'] ?? '') === 'production' ? $ui['admin_production'] : $ui['admin_environment_choose'])) ?></dd></div><div><dt><?= installer_h($ui['admin_origin']) ?></dt><dd><?= installer_h((string) ($confirmedAdmin['origin'] ?? '')) ?></dd></div><div><dt><?= installer_h($ui['admin_path']) ?></dt><dd><?= installer_h((string) ($confirmedAdmin['admin_path'] ?? '')) ?></dd></div></dl>
             <form method="post"><input type="hidden" name="csrf_token" value="<?= installer_h($csrfToken) ?>"><input type="hidden" name="language" value="<?= installer_h($language) ?>"><input type="hidden" name="action" value="install"><div class="form-actions"><a class="secondary-link" href="?step=basic&amp;language=<?= installer_h($language) ?>"><?= installer_h($ui['back']) ?></a><button class="primary" type="submit"><?= installer_h($ui['install_button']) ?></button></div></form>
         <?php endif ?>
     </section>

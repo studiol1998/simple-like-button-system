@@ -27,6 +27,10 @@ return [
     'site_base_domain_include_subdomains' => true,
     // Default API state; maintenance mode rejects public Like and state requests.
     'system_state' => 'enabled',
+    // New installation defaults, matching the Web installer. Existing configs are unchanged.
+    'access_protection' => ['enabled' => true, 'auto_block' => true,
+        'state' => ['window' => 60, 'threshold' => 2400],
+        'like' => ['window' => 60, 'threshold' => 240]],
     // Default language for the admin interface.
     'admin_language' => 'ja',
     // Default color theme for the admin interface.

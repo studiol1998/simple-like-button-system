@@ -21,6 +21,15 @@ Licensed under **GPL-3.0-only** (GNU General Public License version 3 only). See
 
 ## Requirements
 
+New installations explicitly select an admin environment in Basic Settings.
+Production requires an HTTPS admin origin. Local HTTP development requires both
+explicit confirmation and a direct loopback connection; a localhost hostname alone
+never enables it. Confirm the generated admin path (including case), remove
+`install/`, then use the confirmed admin origin/path to log in. While the installer
+remains, its removal notice takes precedence over transport/session checks and no
+admin session or operation starts. Existing configs are not rewritten; see
+[admin migration notes](docs/AdminSecurityMigration.md) before updating.
+
 - PHP 8.1 or later with PDO MySQL enabled.
 - MySQL or MariaDB. Tables in `install/install.sql` use InnoDB.
 - On Apache, `log/.htaccess` denies direct access to archives. On other web servers, add an equivalent access-denial rule in the server configuration.

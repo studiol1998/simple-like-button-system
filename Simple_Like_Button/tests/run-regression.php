@@ -10,6 +10,7 @@ $suites = [
     'phase2-origin-tests.php' => [],
     'admin-password-policy-tests.php' => [],
     'admin-security-tests.php' => ['session'],
+    'installer-config-tests.php' => [],
     'runtime-compatibility-tests.php' => ['pdo_sqlite', 'session'],
     'aggregation-review-tests.php' => ['pdo_sqlite'],
 ];

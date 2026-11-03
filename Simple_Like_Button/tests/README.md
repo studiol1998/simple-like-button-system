@@ -43,6 +43,7 @@ part of the production package.
 | phase2-origin-tests.php | Actual Origin policy, scheme/host/port, subdomain and URL decisions |
 | admin-password-policy-tests.php | Actual password rules, bcrypt boundaries, legacy verification |
 | admin-security-tests.php | Admin transport policy, proxy/Host/development cases, auth expiry and memory-backed session lifecycle/storage failure |
+| installer-config-tests.php | Explicit production/development selection, connection revalidation, case-preserving paths and recursive parity with config.example.php |
 | runtime-compatibility-tests.php | PHP session lifecycle with memory storage; actual LikeService reads with SQLite; date/DST primitives; actual CSV writer |
 | aggregation-review-tests.php | Actual aggregation using a MySQL-to-SQLite test adapter, cleanup failure and total preservation |
 
@@ -130,3 +131,13 @@ without an explicitly audited trusted-code adapter. Callback success does not
 prove fsync, crash durability, silent-loss detection or network-filesystem locking.
 Password revocation applies when credentials are validated; already-authorized
 work in a different session may finish, but the next validation rejects old auth.
+
+The installer/admin regression additions exercise the real basic-settings form
+using a fixture-only wizard session in place of the DB-connect step. They verify
+generated config through actual admin login, complete/partial/uninstalled removal
+notice conditions (including invalid/missing config), language selection and no
+session/settings writes while locked. `/Pollyanna/` is case-sensitive in these
+tests. Production TLS is simulated by a fixture-only server-variable shim; this
+is not a TLS handshake or a full MariaDB install test. No test hooks are added to
+production code. The extracted InstallerConfig is the same generator used before
+real installation writes, and the pure suite detects template/generator drift.

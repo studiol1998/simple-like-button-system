@@ -2,6 +2,7 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require_once __DIR__ . '/regression-prelude.php';
+require_once dirname(__DIR__) . '/src/InstallerConfig.php';
 
 // Opt-in local integration only. All writable data lives in this owned temp tree.
 $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pollyanna-admin-a-' . bin2hex(random_bytes(8));
@@ -85,7 +86,7 @@ try {
         $status = 0;
         foreach ($responseHeaders as $header) {
             if (preg_match('~^HTTP/\S+ ([0-9]+)~', $header, $match)) $status = (int) $match[1];
-            if (preg_match('/^Set-Cookie: (pollyanna_admin_[a-f0-9]{32}=[^;]*)/i', $header, $match)) $cookie = $match[1];
+            if (preg_match('/^Set-Cookie: ((?:pollyanna_admin_[a-f0-9]{32}|pollyanna_installer)=[^;]*)/i', $header, $match)) $cookie = $match[1];
         }
         preg_match('/name="csrf_token" value="([a-f0-9]+)"/', $html, $match);
         return [$status, $html, $match[1] ?? '', $responseHeaders];
@@ -252,6 +253,137 @@ try {
     $config['site_origin'] = 'https://' . $address;
     $config['admin_security'] = ['environment' => 'production', 'trusted_proxies' => ['127.0.0.1']];
     $writeConfig();
+    // New-install integration: exercise the real basic-settings form, shared
+    // generator and admin controller. Database provisioning itself is not run.
+    $wizardRoot = $root . '/Pollyanna';
+    mkdir($wizardRoot, 0700);
+    foreach (['admin', 'src', 'lang', 'install'] as $directory) $copy(dirname(__DIR__) . '/' . $directory, $wizardRoot . '/' . $directory);
+    foreach (['config', 'log'] as $directory) {
+        mkdir($wizardRoot . '/' . $directory, 0700);
+        file_put_contents($wizardRoot . '/' . $directory . '/.htaccess', "Require all denied\n");
+    }
+    $jaCatalog = json_decode(file_get_contents(dirname(__DIR__) . '/lang/admin.ja.json'), true, 64, JSON_THROW_ON_ERROR);
+    $enCatalog = json_decode(file_get_contents(dirname(__DIR__) . '/lang/admin.en.json'), true, 64, JSON_THROW_ON_ERROR);
+    $wizardCookie = '';
+    $localHeaders = ['Host: localhost:' . explode(':', $address)[1]];
+    $localOrigin = 'http://localhost:' . explode(':', $address)[1];
+    $uninstalledCookie = '';
+    [$status, $html] = $request('/Pollyanna/admin/', $uninstalledCookie, 'GET', [], $localHeaders);
+    $assert($status === 503 && !str_contains($html, htmlspecialchars($jaCatalog['admin_ui']['installer_removal_required'], ENT_QUOTES, 'UTF-8'))
+        && $uninstalledCookie === '', 'Uninstalled state retains the original non-lock condition');
+    [$status, , $wizardToken] = $request('/Pollyanna/install/', $wizardCookie, 'GET', [], $localHeaders);
+    $assert($status === 200 && $wizardToken !== '' && str_starts_with($wizardCookie, 'pollyanna_installer='), 'Actual installer welcome session');
+    $wizardId = explode('=', $wizardCookie, 2)[1];
+    if (preg_match('/\A[A-Za-z0-9,-]+\z/D', $wizardId) !== 1) throw new RuntimeException('Invalid isolated wizard SID.');
+    $wizardSessionPath = $root . '/sessions/sess_' . $wizardId;
+    $wizardDatabase = ['dsn' => 'invalid:fixture-never-connect', 'host' => '127.0.0.1', 'port' => '3306',
+        'name' => 'fixture', 'user' => 'fixture', 'password' => 'fixture-only'];
+    $seedWizard = static function (?array $basic = null) use ($wizardSessionPath, $wizardToken, $wizardDatabase): void {
+        $data = ['installer_csrf' => $wizardToken, 'installer_language' => 'ja', 'installer_database' => $wizardDatabase,
+            'installer_step' => $basic === null ? 'basic' : 'confirmation'];
+        if ($basic !== null) $data['installer_basic'] = $basic;
+        $encoded = '';
+        foreach ($data as $key => $value) $encoded .= $key . '|' . serialize($value);
+        file_put_contents($wizardSessionPath, $encoded);
+    };
+    $seedWizard();
+    [$status, $html] = $request('/Pollyanna/install/?step=basic', $wizardCookie, 'GET', [], $localHeaders);
+    $assert($status === 200 && str_contains($html, 'name="admin_environment"') && str_contains($html, 'value="/Pollyanna/admin/"'), 'Actual wizard environment fields and case-sensitive path');
+    $wizardPost = ['action' => 'save_basic', 'csrf_token' => $wizardToken, 'site_origin' => $localOrigin,
+        'site_base_domain' => 'localhost', 'timezone' => 'Asia/Tokyo', 'admin_password' => $password,
+        'admin_password_confirmation' => $password, 'admin_environment' => 'development',
+        'admin_origin' => $localOrigin, 'admin_path' => '/Pollyanna/admin/', 'admin_development_confirmed' => '1'];
+    foreach ([['admin_environment' => ''], ['admin_environment' => 'production'], ['admin_development_confirmed' => '0']] as $invalid) {
+        [$status, $html] = $request('/Pollyanna/install/', $wizardCookie, 'POST', array_replace($wizardPost, $invalid), $localHeaders);
+        $assert($status === 200 && str_contains($html, 'role="alert"') && !is_file($wizardRoot . '/config/config.php'), 'Actual wizard rejects unsafe or unconfirmed selection');
+    }
+    [$status, $html] = $request('/Pollyanna/install/', $wizardCookie, 'POST', $wizardPost, array_merge($localHeaders, ['X-Forwarded-Proto: https']));
+    $assert($status === 200 && str_contains($html, 'role="alert"'), 'Actual wizard rejects proxy-marked development');
+    [$status] = $request('/Pollyanna/install/', $wizardCookie, 'POST', array_replace($wizardPost,
+        ['admin_environment' => 'production', 'admin_origin' => 'https://localhost:' . explode(':', $address)[1]]), $localHeaders);
+    $assert($status === 302, 'Actual wizard accepts explicit HTTPS production selection');
+    [$status] = $request('/Pollyanna/install/', $wizardCookie, 'POST', $wizardPost, $localHeaders);
+    $assert($status === 302, 'Actual wizard accepts confirmed direct development');
+    [$status, $html] = $request('/Pollyanna/install/?step=confirmation', $wizardCookie, 'GET', [], $localHeaders);
+    $assert($status === 200 && str_contains($html, '/Pollyanna/admin/') && str_contains($html, htmlspecialchars($localOrigin, ENT_QUOTES, 'UTF-8')), 'Confirmation shows admin origin and path');
+    $wizardServer = ['SCRIPT_NAME' => '/Pollyanna/install/index.php', 'REMOTE_ADDR' => '127.0.0.1',
+        'HTTP_HOST' => 'localhost:' . explode(':', $address)[1], 'HTTPS' => 'off'];
+    $wizardAdmin = InstallerConfig::adminSettings('development', $localOrigin, '/Pollyanna/admin/', true, $wizardServer);
+    $wizardBasic = ['timezone' => 'Asia/Tokyo', 'admin_password' => $password, 'site_origin' => $localOrigin,
+        'site_base_domain' => 'localhost', 'site_base_domain_include_subdomains' => false,
+        'admin_security' => $wizardAdmin, 'admin_development_confirmed' => true];
+    $assert(str_contains(file_get_contents($wizardSessionPath), 'installer_basic|' . serialize($wizardBasic)), 'Actual wizard session matches generator inputs');
+    $badBasic = $wizardBasic;
+    $badBasic['admin_security']['environment'] = 'production'; // HTTP must fail before DB/marker creation.
+    $seedWizard($badBasic);
+    [$status] = $request('/Pollyanna/install/', $wizardCookie, 'POST', ['action' => 'install', 'csrf_token' => $wizardToken], $localHeaders);
+    $assert(!is_file($wizardRoot . '/config/.installer-in-progress') && !is_file($wizardRoot . '/config/config.php'), 'Final validation precedes all install writes');
+    $generated = InstallerConfig::contents(['dsn' => 'sqlite::memory:', 'user' => '', 'password' => ''],
+        $wizardBasic, bin2hex(random_bytes(32)), $wizardServer);
+    file_put_contents($wizardRoot . '/config/config.php', $generated);
+    file_put_contents($wizardRoot . '/config/admin_credentials.json', json_encode(['password_hash' => $hash], JSON_THROW_ON_ERROR));
+    file_put_contents($wizardRoot . '/config/install_complete.json', '{"completed":true}');
+    $built = require $wizardRoot . '/config/config.php';
+    $broken = $built;
+    $broken['admin_security']['environment'] = 'production'; // Deliberately invalid HTTP production settings.
+    file_put_contents($wizardRoot . '/config/config.php', '<?php return ' . var_export($broken, true) . ';');
+    $sessionSnapshot = static function () use ($root): array {
+        $result = [];
+        foreach (glob($root . '/sessions/sess_*') ?: [] as $file) $result[basename($file)] = hash_file('sha256', $file);
+        ksort($result); return $result;
+    };
+    $beforeNotice = $sessionSnapshot();
+    $beforeCredentials = hash_file('sha256', $wizardRoot . '/config/admin_credentials.json');
+    foreach (['ja' => $jaCatalog, 'en' => $enCatalog] as $code => $catalog) {
+        $noticeCookie = '';
+        [$status, $html, , $headers] = $request('/Pollyanna/admin/?language=' . $code, $noticeCookie, 'GET', [], $localHeaders);
+        $assert($status === 503 && str_contains($html, htmlspecialchars($catalog['admin_ui']['installer_removal_required'], ENT_QUOTES, 'UTF-8'))
+            && !str_contains($html, 'transport or session settings'), 'Complete install shows localized removal notice before transport checks');
+        $assert(!str_contains(strtolower(implode("\n", $headers)), 'set-cookie:'), 'Notice starts no session');
+    }
+    $noticeCookie = '';
+    [$status] = $request('/Pollyanna/admin/', $noticeCookie, 'POST', ['action' => 'save_admin_theme', 'theme' => 'rose', 'csrf_token' => $wizardToken], $localHeaders);
+    $assert($status === 503 && !is_file($wizardRoot . '/config/admin_settings.json') && $beforeNotice === $sessionSnapshot()
+        && $beforeCredentials === hash_file('sha256', $wizardRoot . '/config/admin_credentials.json'), 'Locked POST performs no session/auth/settings writes');
+    rename($wizardRoot . '/config/config.php', $wizardRoot . '/config/config-held');
+    unlink($wizardRoot . '/config/install_complete.json');
+    [$status, $html] = $request('/Pollyanna/admin/?language=en', $noticeCookie, 'GET', [], $localHeaders);
+    $assert($status === 503 && str_contains($html, htmlspecialchars($enCatalog['admin_ui']['installer_removal_required'], ENT_QUOTES, 'UTF-8')), 'Partial install without config retains original lock notice');
+    unlink($wizardRoot . '/config/config-held');
+    file_put_contents($wizardRoot . '/config/config.php', $generated);
+    file_put_contents($wizardRoot . '/config/install_complete.json', '{"completed":true}');
+    rename($root . '/sessions', $root . '/notice-sessions-held');
+    file_put_contents($root . '/sessions', 'not-a-session-directory');
+    [$status, $html] = $request('/Pollyanna/admin/', $noticeCookie, 'GET', [], $localHeaders);
+    $assert($status === 503 && str_contains($html, htmlspecialchars($jaCatalog['admin_ui']['installer_removal_required'], ENT_QUOTES, 'UTF-8'))
+        && !str_contains($html, 'session storage is unavailable'), 'Removal notice does not initialize or finish admin session storage');
+    unlink($root . '/sessions');
+    rename($root . '/notice-sessions-held', $root . '/sessions');
+    rename($wizardRoot . '/install', $root . '/installer-fixture-held'); // Remove from the app's lookup path.
+    $generatedCookie = '';
+    [$status, , $generatedToken, $headers] = $request('/Pollyanna/admin/', $generatedCookie, 'GET', [], $localHeaders);
+    $assert($status === 200 && $generatedToken !== '' && str_contains(implode("\n", $headers), 'path=/Pollyanna/admin/'), 'Generated development config reaches login with correct Cookie Path');
+    [$status] = $request('/Pollyanna/admin/', $generatedCookie, 'POST', ['action' => 'admin_login', 'password' => $password, 'csrf_token' => $generatedToken], $localHeaders);
+    $assert($status === 302, 'Generated config authenticates successfully');
+    [$status, $html] = $request('/Pollyanna/admin/?view=widget-test', $generatedCookie, 'GET', [], $localHeaders);
+    $assert($status === 200 && str_contains($html, 'data-pollyanna-like'), 'Generated config reaches authenticated view');
+    $productionBasic = $wizardBasic;
+    $productionBasic['admin_security']['environment'] = 'production';
+    $productionBasic['admin_security']['origin'] = 'https://localhost:' . explode(':', $address)[1];
+    file_put_contents($wizardRoot . '/config/config.php', InstallerConfig::contents(['dsn' => 'sqlite::memory:', 'user' => '', 'password' => ''],
+        $productionBasic, bin2hex(random_bytes(32)), $wizardServer));
+    $generatedCookie = '';
+    [$status, , , $headers] = $request('/Pollyanna/admin/', $generatedCookie, 'GET', [], $localHeaders);
+    $assert($status === 302 && in_array('Location: https://localhost:' . explode(':', $address)[1] . '/Pollyanna/admin/', $headers, true)
+        && $generatedCookie === '', 'Generated production config redirects HTTP without authentication');
+    // Simulate the native TLS server variable only inside this isolated fixture.
+    // This tests the generated production config, not a real TLS handshake.
+    rename($wizardRoot . '/admin/index.php', $wizardRoot . '/admin/controller-fixture.php');
+    file_put_contents($wizardRoot . '/admin/index.php', '<?php declare(strict_types=1); $_SERVER["HTTPS"]="on"; require __DIR__."/controller-fixture.php";');
+    [$status, , $generatedToken, $headers] = $request('/Pollyanna/admin/', $generatedCookie, 'GET', [], $localHeaders);
+    $assert($status === 200 && $generatedToken !== '' && str_contains(strtolower(implode("\n", $headers)), '; secure'), 'Generated production config accepts simulated native HTTPS with Secure cookie');
+    [$status] = $request('/Pollyanna/admin/', $generatedCookie, 'POST', ['action' => 'admin_login', 'password' => $password, 'csrf_token' => $generatedToken], $localHeaders);
+    $assert($status === 302, 'Generated production config login on simulated native HTTPS');
     rename($root . '/sessions', $root . '/sessions-held');
     file_put_contents($root . '/sessions', 'blocked');
     $cookie = '';

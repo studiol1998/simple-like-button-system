@@ -15,6 +15,22 @@ $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
 $isLocalRequest = in_array($remoteAddress, ['127.0.0.1', '::1', '::ffff:127.0.0.1'], true);
 
 header('Cache-Control: no-store');
+// Informational installation lock precedes transport validation and all sessions.
+$installerDirectory = dirname(__DIR__) . '/install';
+if (PollyannaInstallerState::shouldLockAdmin($installerDirectory,
+    dirname(__DIR__) . '/config/config.php', dirname(__DIR__) . '/config/admin_credentials.json',
+    dirname(__DIR__) . '/config/install_complete.json')) {
+    $catalog = pollyanna_admin_catalog();
+    $requestedLanguage = $_GET['language'] ?? 'ja';
+    $language = is_string($requestedLanguage) && isset($catalog[$requestedLanguage]) ? $requestedLanguage : 'ja';
+    $ui = $catalog[$language]['admin_ui'];
+    http_response_code(503);
+    $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    ?>
+    <!doctype html><html lang="<?= $escape($language) ?>" data-theme="green"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pollyanna — <?= $escape($ui['installer_removal_required']) ?></title><link rel="stylesheet" href="../assets/admin.css"></head><body class="auth-page"><main class="auth-main"><section class="panel auth-card"><div class="brand-line"><span class="heart" aria-hidden="true">♥</span><span class="brand">Pollyanna</span></div><h1><?= $escape($ui['installer_removal_required']) ?></h1><div class="notice settings-error" role="alert"><?= $escape($ui['installer_removal_required_help']) ?></div><p class="muted"><?= $escape($ui['installer_removal_path']) ?></p></section></main></body></html>
+    <?php
+    exit;
+}
 try {
     $adminSecurity = RequestSecurity::settings(pollyanna_config(), $_SERVER);
     // A loopback reverse proxy is not a local administrator connection.
@@ -59,24 +75,7 @@ $ui = $catalog[$language]['admin_ui'] ?? null;
 if (!is_array($ui)) {
     throw new RuntimeException('Pollyanna admin interface translations are missing.');
 }
-$installerCompletionPath = dirname(__DIR__) . '/config/install_complete.json';
-$installerConfigPath = dirname(__DIR__) . '/config/config.php';
 $installerCredentialsPath = dirname(__DIR__) . '/config/admin_credentials.json';
-$installerDirectory = dirname(__DIR__) . '/install';
-$installerLockActive = PollyannaInstallerState::shouldLockAdmin(
-    $installerDirectory,
-    $installerConfigPath,
-    $installerCredentialsPath,
-    $installerCompletionPath
-);
-if ($installerLockActive) {
-    http_response_code(503);
-    $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-    ?>
-    <!doctype html><html lang="<?= $escape($language) ?>" data-theme="green"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pollyanna — <?= $escape($ui['installer_removal_required']) ?></title><link rel="stylesheet" href="../assets/admin.css"></head><body class="auth-page"><main class="auth-main"><section class="panel auth-card"><div class="brand-line"><span class="heart" aria-hidden="true">♥</span><span class="brand">Pollyanna</span></div><h1><?= $escape($ui['installer_removal_required']) ?></h1><div class="notice settings-error" role="alert"><?= $escape($ui['installer_removal_required_help']) ?></div><p class="muted"><?= $escape($ui['installer_removal_path']) ?></p></section></main></body></html>
-    <?php
-    exit;
-}
 $savedTheme = pollyanna_admin_theme();
 $requestedTheme = $_GET['theme'] ?? $_SESSION['pollyanna_login_theme'] ?? $savedTheme;
 $theme = is_string($requestedTheme) && in_array($requestedTheme, pollyanna_admin_themes(), true) ? $requestedTheme : $savedTheme;
