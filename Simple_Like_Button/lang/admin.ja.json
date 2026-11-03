@@ -241,6 +241,7 @@
     "authentication_error": "認証設定を読み込めませんでした。",
     "installer_removal_required": "インストーラーを削除してください",
     "installer_removal_required_help": "安全のため、インストーラーが残っている間は管理画面を利用できません。サーバーからinstallディレクトリを削除してから、管理画面を再読み込みしてください。",
+    "installer_return_admin": "管理画面へ戻る",
     "installer_removal_path": "削除するディレクトリ：install/",
     "widget_test_back": "管理画面へ戻る",
     "widget_test_button": "ボタン %d",

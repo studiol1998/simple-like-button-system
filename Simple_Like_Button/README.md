@@ -2,9 +2,9 @@
 
 バージョン：`v1.0.0-beta1`
 
-Pollyannaは単独で動作する軽量ないいねボタンシステムです。制作名義「にくきぅSYSTEM」と「Nikukiu SYSTEM」は同じ制作名義です。
+Pollyannaは単独で動作する軽量ないいねボタンシステムです。制作名義「にくきぅSYSTEMs」と「Nikukiu-SYSTEMs」は同じ制作名義です。読みは「にくきうしすてむず」です。
 
-Copyright (C) 2026 Nikukiu SYSTEM
+Copyright (C) 2026 にくきぅSYSTEMs
 
 ライセンスは **GPL-3.0-only**（GNU General Public License version 3のみ）です。正式全文は同梱の `LICENSE` を参照してください。GPLが認める利用・改変・再配布に、独自の追加条件は設けません。
 

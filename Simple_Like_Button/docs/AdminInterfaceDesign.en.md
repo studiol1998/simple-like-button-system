@@ -6,7 +6,7 @@ Created: 2026-10-03. The three tabs and separate settings save groups are agreed
 
 ## Shared layout
 
-Show “Pollyanna — An Easy-to-Install Like Button System,” service status, and Dashboard / Details / Settings tabs at the top. Center the full product name and “Developed by Nikukiu-SYSTEM” on two lines in the footer. Mark the selected tab with text and an underline, support keyboard navigation, stack cards on narrow screens, and allow table scrolling. Preserve edits between tabs and warn before leaving with unsaved changes. Admin and public languages remain independent; the implementation will use the existing locale JSON files.
+Show “Pollyanna — An Easy-to-Install Like Button System,” service status, and Dashboard / Details / Settings tabs at the top. Center the full product name and “Developed by Nikukiu-SYSTEMs” on two lines in the footer. Mark the selected tab with text and an underline, support keyboard navigation, stack cards on narrow screens, and allow table scrolling. Preserve edits between tabs and warn before leaving with unsaved changes. Admin and public languages remain independent; the implementation will use the existing locale JSON files.
 
 Style the feature tabs as bordered index labels attached to the page edge. Give the selected tab a white background, slightly greater height, and an accent along its top edge. Allow horizontal scrolling on narrow screens.
 

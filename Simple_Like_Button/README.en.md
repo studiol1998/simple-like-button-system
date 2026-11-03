@@ -2,9 +2,9 @@
 
 Version: `v1.0.0-beta1`
 
-Pollyanna is a lightweight, standalone Like-button system. The Japanese creator name "にくきぅSYSTEM" and the English name "Nikukiu SYSTEM" refer to the same creator.
+Pollyanna is a lightweight, standalone Like-button system. The Japanese creator name "にくきぅSYSTEMs" and the English name "Nikukiu-SYSTEMs" refer to the same creator.
 
-Copyright (C) 2026 Nikukiu SYSTEM
+Copyright (C) 2026 Nikukiu-SYSTEMs
 
 Licensed under **GPL-3.0-only** (GNU General Public License version 3 only). See the unmodified full license in `LICENSE`. No additional proprietary conditions restrict the use, modification or redistribution permitted by the GPL.
 

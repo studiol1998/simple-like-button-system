@@ -27,7 +27,7 @@ if (PollyannaInstallerState::shouldLockAdmin($installerDirectory,
     http_response_code(503);
     $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     ?>
-    <!doctype html><html lang="<?= $escape($language) ?>" data-theme="green"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pollyanna — <?= $escape($ui['installer_removal_required']) ?></title><link rel="stylesheet" href="../assets/admin.css"></head><body class="auth-page"><main class="auth-main"><section class="panel auth-card"><div class="brand-line"><span class="heart" aria-hidden="true">♥</span><span class="brand">Pollyanna</span></div><h1><?= $escape($ui['installer_removal_required']) ?></h1><div class="notice settings-error" role="alert"><?= $escape($ui['installer_removal_required_help']) ?></div><p class="muted"><?= $escape($ui['installer_removal_path']) ?></p></section></main></body></html>
+    <!doctype html><html lang="<?= $escape($language) ?>" data-theme="green"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pollyanna — <?= $escape($ui['installer_removal_required']) ?></title><link rel="stylesheet" href="../assets/admin.css"></head><body class="auth-page"><main class="auth-main"><section class="panel auth-card"><div class="brand-line"><span class="heart" aria-hidden="true">♥</span><span class="brand">Pollyanna</span></div><h1><?= $escape($ui['installer_removal_required']) ?></h1><div class="notice settings-error" role="alert"><?= $escape($ui['installer_removal_required_help']) ?></div><p class="muted"><?= $escape($ui['installer_removal_path']) ?></p><p><a class="secondary-link" href="./?language=<?= $escape(rawurlencode($language)) ?>"><?= $escape($ui['installer_return_admin']) ?></a></p></section></main></body></html>
     <?php
     exit;
 }
@@ -997,7 +997,7 @@ try {
         </section>
     </section>
 </main>
-<footer class="site-footer"><div>Pollyanna — An Easy-to-Install Like Button System</div><div>Developed by Nikukiu-SYSTEM</div></footer>
+<footer class="site-footer"><div>Pollyanna — An Easy-to-Install Like Button System</div><div><?= $language === 'ja' ? '開発：にくきぅSYSTEMs' : 'Developed by Nikukiu-SYSTEMs' ?></div></footer>
 <script id="widget-message-catalog" type="application/json"><?= json_encode(array_map(static fn (array $locale): array => $locale['success_messages'], $widgetCatalog), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
 <script id="timezone-change-data" type="application/json"><?= json_encode(['inProgress' => $timezoneChangeState !== null, 'currentTimezone' => $settings['timezone'], 'labels' => ['aggregating' => $catalog[$language]['timezone_aggregating'], 'archiving' => $catalog[$language]['timezone_archiving'], 'done' => $catalog[$language]['timezone_change_done'], 'storageNote' => $catalog[$language]['timezone_archive_storage_note'], 'error' => $catalog[$language]['timezone_change_error']]], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
 <script src="../assets/admin.js"></script>

@@ -92,6 +92,12 @@ try {
         return [$status, $html, $match[1] ?? '', $responseHeaders];
     };
     $tls = ['X-Forwarded-Proto: https']; // Simulated trusted TLS terminator, not a TLS handshake.
+    mkdir($root . '/install', 0700);
+    $rootNoticeCookie = '';
+    [$rootNoticeStatus, $rootNoticeHtml] = $request('/admin/?language=en', $rootNoticeCookie);
+    $assert($rootNoticeStatus === 503 && str_contains($rootNoticeHtml, 'href="./?language=en">Return to Admin</a>')
+        && $rootNoticeCookie === '', 'Document-root installation return link needs no session');
+    rmdir($root . '/install');
     $cookie = '';
     [$status, , , $headers] = $request('/admin/', $cookie, 'GET', [], ['X-Forwarded-Proto: http']);
     $assert($status === 302 && in_array('Location: https://' . $address . '/admin/', $headers, true), 'HTTP GET uses configured HTTPS destination');
@@ -340,6 +346,12 @@ try {
         $assert($status === 503 && str_contains($html, htmlspecialchars($catalog['admin_ui']['installer_removal_required'], ENT_QUOTES, 'UTF-8'))
             && !str_contains($html, 'transport or session settings'), 'Complete install shows localized removal notice before transport checks');
         $assert(!str_contains(strtolower(implode("\n", $headers)), 'set-cookie:'), 'Notice starts no session');
+        $returnLabel = $code === 'ja' ? '管理画面へ戻る' : 'Return to Admin';
+        $assert(str_contains($html, 'href="./?language=' . $code . '">' . $returnLabel . '</a>'), 'Localized return link uses current admin directory');
+        $returnPaths[$code] = '/Pollyanna/admin/?language=' . $code;
+        [$returnStatus, $returnHtml, , $returnHeaders] = $request($returnPaths[$code], $noticeCookie, 'GET', [], $localHeaders);
+        $assert($returnStatus === 503 && str_contains($returnHtml, $returnLabel)
+            && !str_contains(strtolower(implode("\n", $returnHeaders)), 'set-cookie:'), 'Return link keeps installer lock without starting a session');
     }
     $noticeCookie = '';
     [$status] = $request('/Pollyanna/admin/', $noticeCookie, 'POST', ['action' => 'save_admin_theme', 'theme' => 'rose', 'csrf_token' => $wizardToken], $localHeaders);
@@ -361,6 +373,11 @@ try {
     rename($root . '/notice-sessions-held', $root . '/sessions');
     rename($wizardRoot . '/install', $root . '/installer-fixture-held'); // Remove from the app's lookup path.
     $generatedCookie = '';
+    foreach ($returnPaths as $code => $returnPath) {
+        $returnCookie = '';
+        [$returnStatus, $returnHtml, $returnToken] = $request($returnPath, $returnCookie, 'GET', [], $localHeaders);
+        $assert($returnStatus === 200 && $returnToken !== '' && str_contains($returnHtml, 'name="password"'), 'Same return link reaches login after installer removal');
+    }
     [$status, , $generatedToken, $headers] = $request('/Pollyanna/admin/', $generatedCookie, 'GET', [], $localHeaders);
     $assert($status === 200 && $generatedToken !== '' && str_contains(implode("\n", $headers), 'path=/Pollyanna/admin/'), 'Generated development config reaches login with correct Cookie Path');
     [$status] = $request('/Pollyanna/admin/', $generatedCookie, 'POST', ['action' => 'admin_login', 'password' => $password, 'csrf_token' => $generatedToken], $localHeaders);
