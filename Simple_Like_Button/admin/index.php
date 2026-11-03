@@ -8,13 +8,47 @@ require_once dirname(__DIR__) . '/src/TimezoneChangeService.php';
 require_once dirname(__DIR__) . '/src/OriginPolicy.php';
 require_once dirname(__DIR__) . '/src/InstallerState.php';
 require_once dirname(__DIR__) . '/src/AccessProtectionService.php';
+require_once dirname(__DIR__) . '/src/RequestSecurity.php';
+require_once dirname(__DIR__) . '/src/AdminSession.php';
 
 $remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
 $isLocalRequest = in_array($remoteAddress, ['127.0.0.1', '::1', '::ffff:127.0.0.1'], true);
 
-$isHttps = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-session_set_cookie_params(['httponly' => true, 'secure' => $isHttps, 'samesite' => 'Strict']);
-session_start();
+header('Cache-Control: no-store');
+try {
+    $adminSecurity = RequestSecurity::settings(pollyanna_config(), $_SERVER);
+    // A loopback reverse proxy is not a local administrator connection.
+    $isLocalRequest = $isLocalRequest && $adminSecurity['trusted_proxies'] === [];
+    $transport = RequestSecurity::evaluate($adminSecurity, $_SERVER);
+    if (!$transport['allowed']) {
+        http_response_code($transport['status']);
+        if ($transport['location'] !== null) header('Location: ' . $transport['location']);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('管理画面には設定済みのHTTPSアドレスで接続してください。 / Use the configured secure admin address.');
+    }
+    $adminSession = new AdminSession();
+    // Register before session_start installs PHP's automatic shutdown saver.
+    // Validate persistence before either that saver or buffered redirects run.
+    $adminBufferLevel = ob_get_level();
+    ob_start();
+    register_shutdown_function(static function () use ($adminSession, $adminBufferLevel): void {
+        try { $adminSession->finish(); }
+        catch (Throwable) {
+            while (ob_get_level() > $adminBufferLevel) ob_end_clean();
+            header_remove('Location');
+            http_response_code(503);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'Administrator session storage is unavailable.';
+            return;
+        }
+        while (ob_get_level() > $adminBufferLevel) ob_end_flush();
+    });
+    $adminSession->start($adminSecurity, $transport['secure']);
+} catch (Throwable) {
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('管理通信・セッション設定を確認してください。 / Administrator transport or session settings are unavailable.');
+}
 
 $catalog = pollyanna_admin_catalog();
 $savedLanguage = pollyanna_admin_language();
@@ -61,14 +95,8 @@ try {
     $adminPasswordHash = null;
     $authenticationError = (string) $ui['authentication_error'];
 }
-$isAuthenticated = ($_SESSION['pollyanna_admin_authenticated'] ?? false) === true;
-if ($isAuthenticated && ($adminPasswordHash === null || !is_string($_SESSION['pollyanna_admin_credential_stamp'] ?? null)
-    || !hash_equals(hash('sha256', $adminPasswordHash), $_SESSION['pollyanna_admin_credential_stamp']))) {
-    unset($_SESSION['pollyanna_admin_authenticated'], $_SESSION['pollyanna_admin_credential_stamp']);
-    session_regenerate_id(true);
-    $_SESSION['pollyanna_csrf_token'] = $csrfToken = bin2hex(random_bytes(32));
-    $isAuthenticated = false;
-}
+$isAuthenticated = $adminSession->validate($adminPasswordHash);
+$csrfToken = $_SESSION['pollyanna_csrf_token'];
 if (!$isAuthenticated) {
     $_SESSION['pollyanna_login_language'] = $language;
     $_SESSION['pollyanna_login_theme'] = $theme;
@@ -80,8 +108,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['adm
         http_response_code(403);
         $authenticationError = (string) ($catalog[$language]['csrf_error'] ?? $ui['authentication_error']);
     } elseif ($authAction === 'admin_logout') {
-        unset($_SESSION['pollyanna_admin_authenticated'], $_SESSION['pollyanna_admin_credential_stamp']);
-        session_regenerate_id(true);
+        $adminSession->logout();
         header('Location: ./');
         exit;
     } elseif ($authAction === 'admin_setup' && $adminPasswordHash === null && $isLocalRequest && !file_exists($installerCredentialsPath)) {
@@ -92,9 +119,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['adm
         } else {
             try {
                 pollyanna_save_admin_password($password);
-                session_regenerate_id(true);
-                $_SESSION['pollyanna_admin_authenticated'] = true;
-                $_SESSION['pollyanna_admin_credential_stamp'] = hash('sha256', (string) pollyanna_admin_password_hash());
+                $adminSession->authenticate((string) pollyanna_admin_password_hash());
                 unset($_SESSION['pollyanna_login_language'], $_SESSION['pollyanna_login_theme']);
                 $_SESSION['pollyanna_csrf_token'] = bin2hex(random_bytes(32));
                 header('Location: ./');
@@ -120,9 +145,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array($authAction, ['adm
         } else {
             $password = $_POST['password'] ?? '';
             if (is_string($password) && strlen($password) <= 1024 && password_verify($password, $adminPasswordHash)) {
-                session_regenerate_id(true);
-                $_SESSION['pollyanna_admin_authenticated'] = true;
-                $_SESSION['pollyanna_admin_credential_stamp'] = hash('sha256', (string) pollyanna_admin_password_hash());
+                $adminSession->authenticate($adminPasswordHash);
                 unset($_SESSION['pollyanna_login_language'], $_SESSION['pollyanna_login_theme']);
                 $_SESSION['pollyanna_csrf_token'] = bin2hex(random_bytes(32));
                 unset($_SESSION['pollyanna_login_window'], $_SESSION['pollyanna_login_attempts']);
@@ -255,7 +278,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 try {
                     pollyanna_save_admin_password($new, $current, $adminPasswordHash);
                     $_SESSION = [];
-                    session_regenerate_id(true);
+                    $adminSession->rotate();
                     $_SESSION['pollyanna_password_changed'] = true;
                     $_SESSION['pollyanna_csrf_token'] = bin2hex(random_bytes(32));
                     header('Location: ./', true, 303);

@@ -42,6 +42,7 @@ part of the production package.
 | phase1-php-tests.php | Actual identifier/Unicode and URL normalization functions; some API source invariants |
 | phase2-origin-tests.php | Actual Origin policy, scheme/host/port, subdomain and URL decisions |
 | admin-password-policy-tests.php | Actual password rules, bcrypt boundaries, legacy verification |
+| admin-security-tests.php | Admin transport policy, proxy/Host/development cases, auth expiry and memory-backed session lifecycle/storage failure |
 | runtime-compatibility-tests.php | PHP session lifecycle with memory storage; actual LikeService reads with SQLite; date/DST primitives; actual CSV writer |
 | aggregation-review-tests.php | Actual aggregation using a MySQL-to-SQLite test adapter, cleanup failure and total preservation |
 
@@ -100,3 +101,32 @@ Future stages: official vendor evidence policy, Web preflight integration,
 installation stopping rules, real-server compatibility, Windows build/dependency
 checks, security notices and release-package allowlist integration. None is
 implicitly enabled by this stage.
+
+## Stage 2A addition
+
+The allowlist now includes `admin-security-tests.php` (session extension required).
+For opt-in loopback HTTP integration, run `php tests/admin-security-http-tests.php`
+separately. It copies admin/source/language files into an owned OS temporary tree,
+uses dummy credentials, temporary session files and SQLite memory only, and removes
+the tree/server on exit. It simulates a trusted TLS terminator over loopback HTTP;
+it does not validate real TLS or browser Cookie behavior. See
+`docs/AdminSecurityMigration.md` for settings, migration and verification limits.
+
+For real parallel file-session checks, separately run
+`php tests/admin-session-concurrency-tests.php`. It uses 2-3 local CLI workers,
+an owned temporary session store, copied setting/password helper code and dummy
+fixture config/credentials only. It never reads production config or uses a DB.
+Seven scenarios cover serialized GET-like work, real setting helpers, logout,
+expiry, CSRF rotation and both password-change authorization orders. Any storage
+error/retry in these healthy concurrent scenarios fails the test. HTTP integration
+also runs two PHP servers against the same fixture for real concurrent admin GETs
+and setting POSTs. No real TLS or persistent MySQL is used.
+
+Storage tests inject reported read/write/close failures and test native decoder
+corruption. Production storage wraps only the native flat `files` handler,
+observes callback failures/diagnostics and keeps its lock until final write/close;
+it does not read back and compare the whole session. Other backends are refused
+without an explicitly audited trusted-code adapter. Callback success does not
+prove fsync, crash durability, silent-loss detection or network-filesystem locking.
+Password revocation applies when credentials are validated; already-authorized
+work in a different session may finish, but the next validation rejects old auth.

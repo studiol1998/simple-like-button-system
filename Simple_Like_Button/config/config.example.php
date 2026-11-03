@@ -11,6 +11,18 @@ return [
     'app_secret' => 'replace-with-64-hexadecimal-characters-generated-randomly',
     // Origin hosting Pollyanna, plus the administrator-confirmed site domain policy.
     'site_origin' => 'https://example.com',
+    // Optional admin-only policy. Existing HTTPS site_origin and app_secret provide
+    // production defaults and a stable session identity when this key is absent.
+    'admin_security' => [
+        'environment' => 'production',
+        // Set origin only when the admin HTTPS origin differs from site_origin.
+        // 'origin' => 'https://example.com',
+        // Set admin_path if SCRIPT_NAME does not identify the real install path.
+        // 'admin_path' => '/pollyanna/admin/',
+        'trusted_proxies' => [], // Exact IP addresses only; no implicit trust.
+        // Optional unique 32-character lowercase hexadecimal installation ID.
+        // 'instance_id' => 'replace-with-a-unique-32-hex-id',
+    ],
     'site_base_domain' => 'example.com',
     'site_base_domain_include_subdomains' => true,
     // Default API state; maintenance mode rejects public Like and state requests.

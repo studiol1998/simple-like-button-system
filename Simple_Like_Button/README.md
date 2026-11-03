@@ -21,6 +21,11 @@ Copyright (C) 2026 Nikukiu SYSTEM
 
 ## 必要な環境
 
+管理HTTPS・専用セッションの第2工程Aを更新する前に、
+[管理画面の移行手順](docs/AdminSecurityMigration.md)を確認してください。
+既存のHTTPS Originは移行用既定値として利用します。HTTPの本番Originや
+TLS終端プロキシを使う環境では、コード更新前に管理専用設定が必要です。
+
 - PHP 8.1以降。PDO MySQLドライバーを有効にしてください。
 - MySQLまたはMariaDB。`install/install.sql` のテーブルはInnoDBを使用します。
 - Apacheで運用する場合、`log/.htaccess` によるアーカイブへの直接アクセス拒否が使えます。Apache以外ではWebサーバー側にも同等の拒否設定を追加してください。

@@ -9,6 +9,7 @@ $suites = [
     'phase1-php-tests.php' => [],
     'phase2-origin-tests.php' => [],
     'admin-password-policy-tests.php' => [],
+    'admin-security-tests.php' => ['session'],
     'runtime-compatibility-tests.php' => ['pdo_sqlite', 'session'],
     'aggregation-review-tests.php' => ['pdo_sqlite'],
 ];
