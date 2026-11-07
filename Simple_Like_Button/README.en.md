@@ -1,6 +1,6 @@
 # Pollyanna — Simple Like-button System
 
-Version: `v1.0.0-beta1`
+Version: `v1.0.0-beta2`
 
 Pollyanna is a lightweight, standalone Like-button system. The Japanese creator name "にくきぅSYSTEMs" and the English name "Nikukiu-SYSTEMs" refer to the same creator.
 
@@ -21,30 +21,44 @@ Licensed under **GPL-3.0-only** (GNU General Public License version 3 only). See
 
 ## Requirements
 
-New installations explicitly select an admin environment in Basic Settings.
-Production requires an HTTPS admin origin. Local HTTP development requires both
-explicit confirmation and a direct loopback connection; a localhost hostname alone
-never enables it. Confirm the generated admin path (including case), remove
-`install/`, then use the confirmed admin origin/path to log in. While the installer
-remains, its removal notice takes precedence over transport/session checks and no
-admin session or operation starts. Existing configs are not rewritten; see
-[admin migration notes](docs/AdminSecurityMigration.md) before updating.
-
-- PHP 8.1 or later with PDO MySQL enabled.
+- The implementation requires PHP 8.1 or later with PDO MySQL enabled. Meeting this minimum does not guarantee correct operation in an untested environment or secure production use.
+- For security, use a patched release from a PHP branch receiving security updates. The repository's diagnostic RuntimePolicy sets branch floors of 8.3.36 / 8.4.27 / 8.5.12 and does not recommend 8.1 or 8.2. These floors are not statements of the latest releases or protection against every vulnerability. Vendor backports require separate official evidence.
+- The automated checks for this release were run on PHP 8.5.12 (CLI and the built-in HTTP server). Other PHP versions, real TLS, and a complete installation using production Web PHP with MySQL/MariaDB have not been tested. RuntimePolicy is diagnostic only, is not integrated into the installer or normal operation, and is not included in the release ZIP.
 - MySQL or MariaDB. Tables in `install/install.sql` use InnoDB.
 - On Apache, `log/.htaccess` denies direct access to archives. On other web servers, add an equivalent access-denial rule in the server configuration.
 - Preserve the relative layout of widget JavaScript and the API. For embedding from another origin, configure the primary origin, base domain and additional allowed origins in Admin and operation settings. Origins consist of scheme, host and port, without a path.
+
+## Administrator transport and session settings
+
+Production Admin requires HTTPS. Explicitly select the admin environment in the installer and confirm the admin origin (scheme, host and port) and actual admin path, including case. The HTTP exception requires an explicit `development` setting, a direct loopback connection and a loopback origin. It must not be used for LAN or tunnel exposure.
+
+Admin-specific settings are stored in `admin_security` in `config/config.php`. This production example must be adjusted to the actual origin and installation path:
+
+```php
+'admin_security' => [
+    'environment' => 'production',
+    'origin' => 'https://example.com',
+    'admin_path' => '/pollyanna/admin/',
+    'trusted_proxies' => [],
+],
+```
+
+- With a TLS-terminating reverse proxy, list only its actual connecting IP addresses in `trusted_proxies`. CIDR ranges and blanket trust are not supported. The proxy must preserve the correct Host and overwrite `X-Forwarded-Proto` with a single `https` or `http` value rather than forwarding client input. Confirm the production HTTPS admin origin explicitly even when accessing the installer over HTTP.
+- Admin sessions require PHP's standard `files` handler and a writable, flat `session.save_path` with working exclusive locks. The `0;MODE;path` format is accepted; sharded directories, Redis, Memcached and custom handlers are unsupported. Required PHP settings are `session.use_cookies=1`, `session.use_only_cookies=1`, `session.use_trans_sid=0` and `session.auto_start=0`. Strict mode is enabled before starting the session. Production cookies use Secure, HttpOnly and SameSite=Strict.
+- If incorrect settings cause 400/403/503 responses, the owner should back up the configuration and check `admin_security.origin`, `admin_path`, `trusted_proxies`, PHP session settings, and storage permissions/capacity. Preserve `app_secret`, credentials and the database. Do not bypass authentication or switch to `development` as a recovery shortcut. Check PHP syntax and OPcache refresh, then sign in through the correct HTTPS admin URL.
+
+For detailed settings and recovery, see the [repository's Admin migration notes (Japanese)](https://github.com/studiol1998/simple-like-button-system/blob/main/Simple_Like_Button/docs/AdminSecurityMigration.md). This document is not included in the ZIP. Publish the beta2 code and notes together and consult the matching revision.
 
 ## Installation
 
 1. In the hosting control panel, create one empty database dedicated to Pollyanna.
 2. Create or select a database user and assign it to that database. Grant `CREATE`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE`. If individual selection is unclear, grant all privileges only on the dedicated Pollyanna database.
 3. Copy the database host, port, database name, database username, and database password exactly as displayed. Providers may automatically add characters before database and user names.
-4. Extract `Pollyanna-v1.0.0-beta1.zip` and upload its standard root `pollyanna/`. The installation name and location may be changed. Allow the PHP process to write to both `config/` and `log/`. On non-Apache servers, deny web access to `config/` and `log/`.
+4. Extract `Pollyanna-v1.0.0-beta2.zip` and upload its standard root `pollyanna/`. The installation name and location may be changed. Allow the PHP process to write to both `config/` and `log/`. On non-Apache servers, deny web access to `config/` and `log/`.
 5. Open `/your-install-path/install/` in a browser and proceed through Welcome, Environment check, Database setup, Basic settings, and Confirmation.
-6. Set the aggregation timezone and an admin password of at least 12 Unicode code points and at most 72 UTF-8 bytes, then run the installation. Database and admin passwords are not redisplayed on the review screen.
+6. Explicitly select the admin environment: production requires an HTTPS admin origin; local HTTP development requires direct loopback access and explicit confirmation. Confirm the admin origin and case-sensitive admin path. Set the aggregation timezone and an admin password of at least 12 Unicode code points and at most 72 UTF-8 bytes, then run the installation. Database and admin passwords are not redisplayed on the review screen.
 7. When the completion screen appears, delete the entire `install/` directory from the server. Admin remains locked until it is deleted.
-8. Open `/your-install-path/admin/` and sign in with the admin password you set.
+8. Use the confirmed admin origin and open `/your-install-path/admin/` to sign in with the admin password you set. While `install/` remains, only its removal notice is shown; no admin session or operation starts.
 9. Add this snippet to the page where the widget should appear. Replace `/pollyanna/` with the deployed path.
 
 The installer creates tables, initial data, the secret, configuration, and admin credentials inside the prepared empty database. It does not create the database or database user.
@@ -58,6 +72,8 @@ For a manual installation, create `config/config.php` from `config/config.exampl
 ```
 
 `data-identifier` identifies the target being counted. Reusing the same value for the same target shares its count, liked state, and rate limit. Manual values are limited to 100 Unicode code points and cannot contain whitespace or ASCII symbols except `-` and `_`. Omitting the attribute generates an identifier from the current path and DOM position; an empty attribute is an error. When updating the CSS, change `v=1` to refresh browser caches.
+
+Automatically generated identifiers may collide across different pages. For example, the first button on `/a/news/article.html` and `/b/news/article.html` becomes `news_article_001` in both cases. To keep a counting target stable, use a manual identifier independent of page paths and DOM order, and assign different values to targets that must be counted separately.
 
 The installation URL is selected from `data-url`, canonical, `og:url`, and the current page URL in that order. Its query and fragment are removed, and it is saved only after a Like succeeds. One identifier can have multiple URLs.
 
@@ -89,7 +105,7 @@ The filesystem must support file locking and exclusive file creation. Test concu
 
 Edit widget text in `lang/widget.ja.json` and `lang/widget.en.json`. To change a success message, keep its key (such as `like01`) and edit the value. To add an option, add the same numbered key to both JSON files. JSON does not support comments.
 
-## Access concentration detection (v1.0.0-beta1)
+## Access concentration detection (introduced in beta1)
 
 The Access concentration detection tab shows monitoring, current blocks and the last 60 days of history above the settings. History offers 20 (default), 50, 80 or 100 entries per page, with the choice saved in the browser. New installations default to detection ON and automatic blocking ON. Existing saved settings are preserved; legacy installations without a settings file retain detection ON and automatic blocking OFF. Turning detection OFF also turns automatic blocking OFF and disables its control. Turning detection back ON enables the control but does not turn automatic blocking back ON. Detection-only operation is available. Legacy detection OFF / automatic blocking ON settings are normalized to both OFF when read and cannot be saved in that inconsistent state.
 
@@ -117,6 +133,12 @@ Expired counters, blocks and history are deleted on the next public API check or
 This ZIP is for new installations only. It contains `install/install.sql` and excludes migration SQL for existing installations. Do not use it to overwrite an existing installation or rerun its installer.
 
 Before migration, or if protection encounters a database/locking error, the public APIs continue without this protection and log the problem. Admin reports unavailable schema/read failures. Monitor logs and verify operation after deployment. A short database-scoped lock serializes protection transactions. This application feature cannot stop network-scale attacks before they reach PHP or the database.
+
+## Beta2 status and known limitations
+
+Beta2 is a prerelease, not the final release, and precedes the planned ERAMINAN.jp field test. Verification in the actual operating environment is pending. The ZIP is for new installations only and must not overwrite an existing installation.
+
+Separating `config/`, `src/` or other application directories outside the document root is currently untested and unsupported. Preserve the relative directory layout and deny web access to `config/` and `log/`.
 
 ## Installation location and URLs
 

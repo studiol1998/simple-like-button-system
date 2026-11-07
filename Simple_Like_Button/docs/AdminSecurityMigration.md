@@ -198,13 +198,14 @@ GCや保存期間設定によってセッションがアプリの期限より早
 
 ## 配布ZIPへの後続作業
 
-`tools/build-release.ps1`の許可リストはこの工程では変更していません。
-現在の許可リストのままZIPを作ると、新しい管理画面が必要とするクラスが欠落します。
-配布前に最低限`src/RequestSecurity.php`、`src/AdminSession.php`、`src/AdminSessionStore.php`、
-`src/InstallerConfig.php`を追加し、
-`src/RuntimePolicy.php`も後続の利用箇所と合わせて梱包対象を確認してください。
-更新した設定テンプレート・移行説明が利用者へ届くことを確認し、テストコード、
-実設定、認証情報、セッション、ログは含めません。
+β-2版の公開前修正で、`tools/build-release.ps1`の許可リストへ
+`src/RequestSecurity.php`、`src/AdminSession.php`、`src/AdminSessionStore.php`、
+`src/InstallerConfig.php`、`assets/embed-copy.js`を追加しました。
+`src/RuntimePolicy.php`は診断・回帰テストだけから利用し、通常動作・インストーラーの
+依存ではないため収録しません。通常動作へ統合する場合は改めて収録を判断してください。
+更新した設定テンプレートと日英READMEの管理通信・復旧説明を同梱します。
+この詳細資料はリポジトリで参照し、β-2のコードと同時に公開してください。
+テストコード、実設定、認証情報、セッション、ログは含めません。
 展開したZIPからの標準・サブディレクトリ設置とログインを試験するまで配布しません。
 
 ## 検証

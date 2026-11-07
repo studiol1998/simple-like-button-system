@@ -17,10 +17,12 @@ $allowlist = @(
     'admin/index.php', 'admin/widget-test-view.php',
     'api/bootstrap.php', 'api/state.php', 'api/like.php',
     'assets/admin.css', 'assets/admin.js', 'assets/installer.css',
-    'assets/installer.js', 'assets/like.css', 'assets/like.js',
+    'assets/installer.js', 'assets/like.css', 'assets/like.js', 'assets/embed-copy.js',
     'src/bootstrap.php', 'src/AdminPasswordPolicy.php', 'src/InstallerState.php',
     'src/OriginPolicy.php', 'src/LikeService.php', 'src/AggregationService.php',
     'src/TimezoneChangeService.php', 'src/AccessProtectionService.php',
+    'src/RequestSecurity.php', 'src/AdminSession.php', 'src/AdminSessionStore.php',
+    'src/InstallerConfig.php',
     'lang/admin.ja.json', 'lang/admin.en.json', 'lang/widget.ja.json', 'lang/widget.en.json',
     'config/.htaccess', 'config/config.example.php', 'log/.htaccess',
     'install/index.php', 'install/install.sql', 'install/readme.php'
@@ -95,7 +97,7 @@ while (!(Test-Path -LiteralPath $ancestor)) { $ancestor = Split-Path $ancestor -
 Assert-NoLink $ancestor
 if (!(Test-Path -LiteralPath $output)) { New-Item -ItemType Directory -Path $output | Out-Null }
 Assert-NoLink $output
-$final = Join-Path $output 'Pollyanna-v1.0.0-beta1.zip'
+$final = Join-Path $output 'Pollyanna-v1.0.0-beta2.zip'
 if (Test-Path -LiteralPath $final) { throw 'A completed ZIP already exists; refusing to overwrite it.' }
 $temporary = Join-Path $output ('.pollyanna-' + [Guid]::NewGuid().ToString('N') + '.tmp')
 try {
