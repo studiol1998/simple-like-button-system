@@ -245,6 +245,13 @@
     "installer_removal_path": "Directory to delete: install/",
     "widget_test_back": "Back to administration",
     "widget_test_button": "Button %d",
+    "embed_copy": "Copy",
+    "embed_identifier_heading": "About identifiers (data-identifier)",
+    "embed_identifier_lines": ["%s is a sample. Buttons with the same identifier share their Like count and liked state.", "Use different identifiers to count Likes separately.", "If you omit the identifier attribute, an identifier is generated automatically."],
+    "embed_copy_success": "Copied.",
+    "embed_copy_failure": "Copy failed. Select the code and copy it manually.",
+    "embed_placement": ["CSS: once inside <head>", "div: wherever you want a button", "JavaScript: once just before </body>"],
+
     "widget_test_example": "HTML embedding example",
     "widget_test_identifier": "Test identifier",
     "widget_test_intro": "Both buttons share the same counting target. Check initial display, clicks, count updates, synchronized state and communication errors.",

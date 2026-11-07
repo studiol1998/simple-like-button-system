@@ -245,6 +245,13 @@
     "installer_removal_path": "削除するディレクトリ：install/",
     "widget_test_back": "管理画面へ戻る",
     "widget_test_button": "ボタン %d",
+    "embed_copy": "コピー",
+    "embed_identifier_heading": "識別子（data-identifier）について",
+    "embed_identifier_lines": ["%s はサンプルです。同じ識別子を指定したボタンは、いいね数と押下状態を共有します。", "別々に集計したい場合は、異なる識別子を指定してください。", "識別子を省略した場合は、自動生成されます。"],
+    "embed_copy_success": "コピーしました。",
+    "embed_copy_failure": "コピーできませんでした。コードを選択して手動でコピーしてください。",
+    "embed_placement": ["CSS：<head> 内に1回", "div：ボタンを表示したい場所ごと", "JavaScript：</body> の直前に1回"],
+
     "widget_test_example": "HTML組み込み例",
     "widget_test_identifier": "テスト用identifier",
     "widget_test_intro": "2個のボタンは同じ集計対象です。初期表示、押下、件数更新、状態同期と通信エラー表示を確認できます。",

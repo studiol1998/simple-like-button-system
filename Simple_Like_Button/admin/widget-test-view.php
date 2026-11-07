@@ -42,9 +42,22 @@ $example = '<link rel="stylesheet" href="' . $basePath . '/assets/like.css">' . 
     <section class="panel settings-card" style="margin-top:20px">
         <h2><?= $testEscape($ui['widget_test_example']) ?></h2>
         <p><?= $testEscape($ui['widget_test_paths']) ?></p>
-        <pre style="white-space:pre-wrap;overflow-wrap:anywhere"><code><?= $testEscape($example) ?></code></pre>
+        <?php foreach (explode("\n", $example) as $index => $line): ?>
+        <div class="embed-example">
+            <p><?= $testEscape($ui['embed_placement'][$index]) ?></p>
+            <div class="embed-code-row"><pre><code id="embed-code-<?= $index ?>"><?= $testEscape($line) ?></code></pre><button type="button" class="embed-copy" data-copy-code="embed-code-<?= $index ?>" aria-describedby="embed-status-<?= $index ?>"><?= $testEscape($ui['embed_copy']) ?></button></div>
+            <?php if ($index === 1): ?>
+            <div class="embed-identifier-help">
+                <h3><?= $testEscape($ui['embed_identifier_heading']) ?></h3>
+                <p><?php foreach ($ui['embed_identifier_lines'] as $lineIndex => $helpLine): ?><?php if ($lineIndex > 0): ?><br><?php endif ?><?= $testEscape($lineIndex === 0 ? sprintf($helpLine, $testIdentifier) : $helpLine) ?><?php endforeach ?></p>
+            </div>
+            <?php endif ?>
+            <p id="embed-status-<?= $index ?>" class="embed-copy-status" role="status" aria-live="polite" data-copy-success="<?= $testEscape($ui['embed_copy_success']) ?>" data-copy-failure="<?= $testEscape($ui['embed_copy_failure']) ?>"></p>
+        </div>
+        <?php endforeach ?>
     </section>
 </main>
 <script defer src="../assets/like.js"></script>
+<script defer src="../assets/embed-copy.js"></script>
 </body>
 </html>

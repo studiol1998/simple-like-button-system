@@ -98,6 +98,19 @@ nav{align-items:flex-end;gap:7px;padding-inline:12px;border-bottom:2px solid #ae
 
 .access-settings select:disabled { opacity: .55; cursor: not-allowed; }
 
+/* Installer removal notice only; login and admin theme styles stay shared. */
+.embed-example{margin-top:20px}.embed-example>p{margin-bottom:8px}
+.embed-identifier-help{margin-top:12px;overflow-wrap:anywhere}.embed-identifier-help h3{margin:0 0 4px;font-size:1em;font-weight:650}.embed-identifier-help p{margin:0;line-height:1.7}
+.embed-code-row{display:flex;align-items:flex-start;gap:12px}.embed-code-row pre{flex:1;min-width:0;margin:0;padding:12px;border:1px solid var(--theme-line,var(--line));border-radius:6px;background:var(--theme-input,#fff);color:var(--theme-text,inherit);white-space:pre-wrap;overflow-wrap:anywhere}
+.embed-copy{flex:none;min-height:44px;padding:10px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}.embed-copy:hover{filter:brightness(.9)}.embed-copy:disabled{opacity:.65;cursor:wait}.embed-copy-status{min-height:1.5em;margin-top:6px;font-size:14px;color:var(--theme-text,inherit)}
+@media(max-width:480px){.embed-code-row{gap:8px}.embed-copy{padding:10px}}
+.installer-notice .installer-target code{padding:3px 7px;border-radius:4px;background:#f1f2f3;color:#34383c;font-size:.95em}
+.installer-notice .installer-actions{display:flex;justify-content:flex-end;margin-top:24px;padding-top:20px;border-top:1px solid #e5e7eb}
+.installer-notice .installer-return{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:44px;max-width:100%;padding:11px 18px;border-radius:8px;background:#111;color:#fff;text-decoration:none;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.installer-notice .installer-return:hover{background:#333}
+.installer-notice .installer-return:focus-visible{outline:3px solid #385e45;outline-offset:4px}
+.installer-notice .installer-return span{flex:none}
+@media(max-width:480px){.installer-notice{padding:22px}.installer-notice .installer-return{width:100%}}
 /* Keep the five main tabs within the header on compact screens. */
 nav[role="tablist"]{overflow:visible}
 nav[role="tablist"] button{flex:1 1 0;min-width:0;white-space:normal;overflow-wrap:anywhere}

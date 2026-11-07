@@ -95,7 +95,7 @@ try {
     mkdir($root . '/install', 0700);
     $rootNoticeCookie = '';
     [$rootNoticeStatus, $rootNoticeHtml] = $request('/admin/?language=en', $rootNoticeCookie);
-    $assert($rootNoticeStatus === 503 && str_contains($rootNoticeHtml, 'href="./?language=en">Return to Admin</a>')
+    $assert($rootNoticeStatus === 503 && str_contains($rootNoticeHtml, 'href="./?language=en">Return to Admin <span aria-hidden="true">→</span></a>')
         && $rootNoticeCookie === '', 'Document-root installation return link needs no session');
     rmdir($root . '/install');
     $cookie = '';
@@ -347,7 +347,9 @@ try {
             && !str_contains($html, 'transport or session settings'), 'Complete install shows localized removal notice before transport checks');
         $assert(!str_contains(strtolower(implode("\n", $headers)), 'set-cookie:'), 'Notice starts no session');
         $returnLabel = $code === 'ja' ? '管理画面へ戻る' : 'Return to Admin';
-        $assert(str_contains($html, 'href="./?language=' . $code . '">' . $returnLabel . '</a>'), 'Localized return link uses current admin directory');
+        $assert(str_contains($html, '<code>install/</code>') && str_contains($html, 'auth-card installer-notice')
+            && str_contains($html, 'class="installer-actions"') && str_contains($html, 'class="installer-return"'), 'Both locales use isolated installer notice UI');
+        $assert(str_contains($html, 'href="./?language=' . $code . '">' . $returnLabel . ' <span aria-hidden="true">→</span></a>'), 'Localized return link uses current admin directory');
         $returnPaths[$code] = '/Pollyanna/admin/?language=' . $code;
         [$returnStatus, $returnHtml, , $returnHeaders] = $request($returnPaths[$code], $noticeCookie, 'GET', [], $localHeaders);
         $assert($returnStatus === 503 && str_contains($returnHtml, $returnLabel)
@@ -384,6 +386,30 @@ try {
     $assert($status === 302, 'Generated config authenticates successfully');
     [$status, $html] = $request('/Pollyanna/admin/?view=widget-test', $generatedCookie, 'GET', [], $localHeaders);
     $assert($status === 200 && str_contains($html, 'data-pollyanna-like'), 'Generated config reaches authenticated view');
+    foreach (['ja' => 'コピー', 'en' => 'Copy'] as $code => $copyLabel) {
+        [$copyStatus, $copyHtml] = $request('/Pollyanna/admin/?view=widget-test&language=' . $code, $generatedCookie, 'GET', [], $localHeaders);
+        preg_match_all('~<code id="embed-code-[0-2]">(.*?)</code>~s', $copyHtml, $codeMatches);
+        $displayed = array_map(static fn (string $line): string => html_entity_decode($line, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $codeMatches[1]);
+        $assert($copyStatus === 200 && $displayed === [
+            '<link rel="stylesheet" href="/Pollyanna/assets/like.css">',
+            '<div data-pollyanna-like data-identifier="Pollyanna-test_01（ポリアンナテスト_01）"></div>',
+            '<script defer src="/Pollyanna/assets/like.js"></script>',
+        ], 'Embedding code remains unchanged in both languages');
+        $helpCatalog = ($code === 'ja' ? $jaCatalog : $enCatalog)['admin_ui'];
+        $expectedHelp = array_map(static fn (string $text): string => htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), [
+            sprintf($helpCatalog['embed_identifier_lines'][0], 'Pollyanna-test_01（ポリアンナテスト_01）'),
+            $helpCatalog['embed_identifier_lines'][1], $helpCatalog['embed_identifier_lines'][2],
+        ]);
+        $assert(substr_count($copyHtml, 'class="embed-identifier-help"') === 1
+            && str_contains($copyHtml, '<p>' . implode('<br>', $expectedHelp) . '</p>')
+            && str_contains($copyHtml, htmlspecialchars($helpCatalog['embed_identifier_heading'], ENT_QUOTES, 'UTF-8')),
+            'Localized identifier help has one heading and three lines without separate paragraphs');
+        $assert(strpos($copyHtml, 'id="embed-code-1"') < strpos($copyHtml, 'class="embed-identifier-help"')
+            && strpos($copyHtml, 'class="embed-identifier-help"') < strpos($copyHtml, 'id="embed-status-1"'),
+            'Identifier help follows only the div code before copy feedback');
+        $assert(substr_count($copyHtml, 'data-copy-code=') === 3 && substr_count($copyHtml, '>' . $copyLabel . '</button>') === 3
+            && substr_count($copyHtml, 'aria-live="polite"') === 3, 'Each code line has an independent localized copy button and feedback');
+    }
     $productionBasic = $wizardBasic;
     $productionBasic['admin_security']['environment'] = 'production';
     $productionBasic['admin_security']['origin'] = 'https://localhost:' . explode(':', $address)[1];
