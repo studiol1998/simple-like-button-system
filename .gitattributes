@@ -1,1 +1,2 @@
 * text=auto eol=lf
+Simple_Like_Button/docs/archive/legacy/*.md -text -eol whitespace=cr-at-eol

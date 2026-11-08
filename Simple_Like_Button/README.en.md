@@ -1,69 +1,73 @@
 # Pollyanna — Simple Like-button System
 
-Version: `v1.0.0-beta2`
+[日本語](README.md) | English
 
-Pollyanna is a lightweight, standalone Like-button system. The Japanese creator name "にくきぅSYSTEMs" and the English name "Nikukiu-SYSTEMs" refer to the same creator.
+Pollyanna is a self-hosted Like button system for embedding in web pages. Customize the button's appearance and Like limits, and view collected reactions in the Admin dashboard. A Web installer guides you through setup.
 
-Copyright (C) 2026 Nikukiu-SYSTEMs
+**Applicable version: v1.0.0-beta2 (β-2)**
 
-Licensed under **GPL-3.0-only** (GNU General Public License version 3 only). See the unmodified full license in `LICENSE`. No additional proprietary conditions restrict the use, modification or redistribution permitted by the GPL.
+> β-2 is a pre-release before field testing, not a stable release. The distribution ZIP is for new installations only. Do not use it to overwrite an existing installation or rerun its installer.
 
-## Current features
+[Download Pollyanna β-2 (ZIP)](https://github.com/studiol1998/simple-like-button-system/releases/download/v1.0.0-beta2/Pollyanna-v1.0.0-beta2.zip)
 
-- Japanese and English widget text, with selectable Like success messages
-- Restoring the same browser's Like state for each identifier
-- A rolling limit of 1–5 Likes per identifier and anonymous browser in 24 hours (default: 3)
-- Six text-symbol presets, unliked/liked symbol colors, and public Like count visibility, color, and refresh interval (5 seconds by default; 0 disables refresh)
-- A configurable automatic aggregation threshold (default: 1,000 events)
-- Daily, monthly, yearly, and time-of-day aggregates
-- CSV archival and aggregate reset when changing the timezone
-- Password-protected admin interface and browser-based web installer
+## Screenshots
 
-## Requirements
+These are development screenshots with test data. Screens and specifications may change before the stable release. The examples below show the Japanese UI; the application also supports English.
 
-- The implementation requires PHP 8.1 or later with PDO MySQL enabled. Meeting this minimum does not guarantee correct operation in an untested environment or secure production use.
-- For security, use a patched release from a PHP branch receiving security updates. The repository's diagnostic RuntimePolicy sets branch floors of 8.3.36 / 8.4.27 / 8.5.12 and does not recommend 8.1 or 8.2. These floors are not statements of the latest releases or protection against every vulnerability. Vendor backports require separate official evidence.
-- The automated checks for this release were run on PHP 8.5.12 (CLI and the built-in HTTP server). Other PHP versions, real TLS, and a complete installation using production Web PHP with MySQL/MariaDB have not been tested. RuntimePolicy is diagnostic only, is not integrated into the installer or normal operation, and is not included in the release ZIP.
-- MySQL or MariaDB. Tables in `install/install.sql` use InnoDB.
-- On Apache, `log/.htaccess` denies direct access to archives. On other web servers, add an equivalent access-denial rule in the server configuration.
-- Preserve the relative layout of widget JavaScript and the API. For embedding from another origin, configure the primary origin, base domain and additional allowed origins in Admin and operation settings. Origins consist of scheme, host and port, without a path.
+### Display Preview in the Admin Dashboard
 
-## Administrator transport and session settings
+This preview checks backgrounds and the button's unliked/liked appearance. It is not a screenshot of a button embedded in a live site.
 
-Production Admin requires HTTPS. Explicitly select the admin environment in the installer and confirm the admin origin (scheme, host and port) and actual admin path, including case. The HTTP exception requires an explicit `development` setting, a direct loopback connection and a loopback origin. It must not be used for LAN or tunnel exposure.
+![Button display preview in the Admin dashboard](https://raw.githubusercontent.com/studiol1998/simple-like-button-system/ca78904ee3257c937c499f2700e272d4a2d05a68/docs/images/button-preview.png)
 
-Admin-specific settings are stored in `admin_security` in `config/config.php`. This production example must be adjusted to the actual origin and installation path:
+### Dashboard
 
-```php
-'admin_security' => [
-    'environment' => 'production',
-    'origin' => 'https://example.com',
-    'admin_path' => '/pollyanna/admin/',
-    'trusted_proxies' => [],
-],
-```
+View total Likes, aggregated and unaggregated counts, and daily, monthly, and hourly statistics.
 
-- With a TLS-terminating reverse proxy, list only its actual connecting IP addresses in `trusted_proxies`. CIDR ranges and blanket trust are not supported. The proxy must preserve the correct Host and overwrite `X-Forwarded-Proto` with a single `https` or `http` value rather than forwarding client input. Confirm the production HTTPS admin origin explicitly even when accessing the installer over HTTP.
-- Admin sessions require PHP's standard `files` handler and a writable, flat `session.save_path` with working exclusive locks. The `0;MODE;path` format is accepted; sharded directories, Redis, Memcached and custom handlers are unsupported. Required PHP settings are `session.use_cookies=1`, `session.use_only_cookies=1`, `session.use_trans_sid=0` and `session.auto_start=0`. Strict mode is enabled before starting the session. Production cookies use Secure, HttpOnly and SameSite=Strict.
-- If incorrect settings cause 400/403/503 responses, the owner should back up the configuration and check `admin_security.origin`, `admin_path`, `trusted_proxies`, PHP session settings, and storage permissions/capacity. Preserve `app_secret`, credentials and the database. Do not bypass authentication or switch to `development` as a recovery shortcut. Check PHP syntax and OPcache refresh, then sign in through the correct HTTPS admin URL.
+![Dashboard example](https://raw.githubusercontent.com/studiol1998/simple-like-button-system/ca78904ee3257c937c499f2700e272d4a2d05a68/docs/images/dashboard.png)
 
-For detailed settings and recovery, see the [repository's Admin migration notes (Japanese)](https://github.com/studiol1998/simple-like-button-system/blob/main/Simple_Like_Button/docs/AdminSecurityMigration.md). This document is not included in the ZIP. Publish the beta2 code and notes together and consult the matching revision.
+<details>
+<summary>Show the public display settings screenshot</summary>
 
-## Installation
+Configure symbols, colors, success messages, the 24-hour Like limit, count visibility, and refresh intervals.
 
-1. In the hosting control panel, create one empty database dedicated to Pollyanna.
-2. Create or select a database user and assign it to that database. Grant `CREATE`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE`. If individual selection is unclear, grant all privileges only on the dedicated Pollyanna database.
-3. Copy the database host, port, database name, database username, and database password exactly as displayed. Providers may automatically add characters before database and user names.
-4. Extract `Pollyanna-v1.0.0-beta2.zip` and upload its standard root `pollyanna/`. The installation name and location may be changed. Allow the PHP process to write to both `config/` and `log/`. On non-Apache servers, deny web access to `config/` and `log/`.
-5. Open `/your-install-path/install/` in a browser and proceed through Welcome, Environment check, Database setup, Basic settings, and Confirmation.
-6. Explicitly select the admin environment: production requires an HTTPS admin origin; local HTTP development requires direct loopback access and explicit confirmation. Confirm the admin origin and case-sensitive admin path. Set the aggregation timezone and an admin password of at least 12 Unicode code points and at most 72 UTF-8 bytes, then run the installation. Database and admin passwords are not redisplayed on the review screen.
-7. When the completion screen appears, delete the entire `install/` directory from the server. Admin remains locked until it is deleted.
-8. Use the confirmed admin origin and open `/your-install-path/admin/` to sign in with the admin password you set. While `install/` remains, only its removal notice is shown; no admin session or operation starts.
-9. Add this snippet to the page where the widget should appear. Replace `/pollyanna/` with the deployed path.
+![Public display settings example](https://raw.githubusercontent.com/studiol1998/simple-like-button-system/ca78904ee3257c937c499f2700e272d4a2d05a68/docs/images/display-settings.png)
 
-The installer creates tables, initial data, the secret, configuration, and admin credentials inside the prepared empty database. It does not create the database or database user.
+</details>
 
-For a manual installation, create `config/config.php` from `config/config.example.php`, set a unique 64-character hexadecimal `app_secret`, and execute `install/install.sql`. Manual setup must also provide admin credentials and completion state, so the web installer is recommended.
+## Main Features
+
+- Japanese/English display, success messages, and six symbol presets with configurable colors
+- A rolling 24-hour limit per anonymous browser and identifier: 1–5 Likes, default 3
+- Like state restoration, optional public counts, and automatic refresh: default 5 seconds; 0 disables refresh
+- Daily/monthly/yearly/hourly aggregation and an automatic aggregation threshold: default 1,000 events
+- A password-protected Admin dashboard, display preview, and widget test
+- Abnormal access detection, temporary blocking, and manual release
+- CSV archival and aggregate reset when changing the time zone
+
+## Requirements and Installation Conditions
+
+| Item | Requirement |
+| --- | --- |
+| PHP | Official runtime requirement: 8.3 or later, with PDO MySQL, JSON, and sessions |
+| Database | InnoDB on MySQL or MariaDB; prepare a dedicated empty database |
+| Administrative transport | Production Admin requires HTTPS; TLS-terminating proxies require explicit configuration |
+| Sessions | PHP's standard files handler and a writable, flat storage destination with working exclusive locks |
+| Files | Write access to config/ and log/, with Web access to both directories denied |
+| Embedding pages | HTTP/HTTPS with JavaScript, Fetch, and localStorage available |
+
+PHP 8.2 and earlier are outside official support. The current installer permits 8.1–8.2, but the unsupported-version warning is not implemented. PHP 8.0 and earlier cannot be installed. Recorded automated verification used PHP 8.5.12 (CLI and the built-in HTTP server); this does not guarantee all PHP 8.3-or-later environments, production TLS, or real-browser operation. Use PHP within its security support period with necessary security fixes applied.
+
+Hierarchical administrative session storage, Redis, Memcached, and custom handlers are unsupported. On Apache, verify that .htaccess is actually honored; other web servers require equivalent access denial. No cron, Redis, external API, or additional library is required. See [Installation Chapters 1–5](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/docs/Installation.en.md) for details.
+
+## Quick Installation
+
+1. Prepare a dedicated empty database and database user with CREATE, SELECT, INSERT, UPDATE, and DELETE privileges on that database. Record the host, port, database name, username, and password. The installer does not create the database itself or its user.
+2. Extract Pollyanna-v1.0.0-beta2.zip and upload pollyanna/ to the server. Preserve its relative layout and check write permissions and Web access denial for config/ and log/.
+3. Open /your-install-path/install/ and complete environment checks, database connection, and basic settings. Confirm the administrative environment, HTTPS administrator Origin, case-sensitive administrator path, time zone, and password before execution. Passwords require at least 12 Unicode code points and no more than 72 UTF-8 bytes.
+4. After completion, remove the entire install/ directory. Admin is unavailable while it remains.
+5. Sign in through the verified HTTPS administrator URL and check settings saves and Widget test. Test clicks count as real data in statistics.
+6. Add the following to the HTML where the button should appear. Replace /pollyanna/, the URL, and the identifier with actual values.
 
 ```html
 <link rel="stylesheet" href="/pollyanna/assets/like.css?v=1">
@@ -71,91 +75,31 @@ For a manual installation, create `config/config.php` from `config/config.exampl
 <script defer src="/pollyanna/assets/like.js"></script>
 ```
 
-`data-identifier` identifies the target being counted. Reusing the same value for the same target shares its count, liked state, and rate limit. Manual values are limited to 100 Unicode code points and cannot contain whitespace or ASCII symbols except `-` and `_`. Omitting the attribute generates an identifier from the current path and DOM position; an empty attribute is an error. When updating the CSS, change `v=1` to refresh browser caches.
+data-identifier distinguishes the aggregation subject. Specify it manually to keep a subject fixed, and use distinct values for different subjects. Multiple buttons for the same subject can share a value. Automatic generation when the attribute is omitted can collide across pages. Manual values are limited to 100 Unicode code points; whitespace, control characters, and ASCII symbols other than “-” and “_” are prohibited. Update the URL's v value when changing CSS.
 
-Automatically generated identifiers may collide across different pages. For example, the first button on `/a/news/article.html` and `/b/news/article.html` becomes `news_article_001` in both cases. To keep a counting target stable, use a manual identifier independent of page paths and DOM order, and assign different values to targets that must be counted separately.
+For embedding on an external Origin, add permission in Admin. The installation URL's Origin also needs permission for URL registration. See [Installation Chapter 6](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/docs/Installation.en.md) for embedding, installation locations, and message editing.
 
-The installation URL is selected from `data-url`, canonical, `og:url`, and the current page URL in that order. Its query and fragment are removed, and it is saved only after a Like succeeds. One identifier can have multiple URLs.
+## Important Limitations
 
-The browser identifier is stored in LocalStorage; the database stores only its HMAC, generated with the installation secret. Raw IP addresses are not stored. Clearing LocalStorage makes that browser appear as a new anonymous visitor.
+- Installation with config/, src/, or other components separated outside the web root is currently unverified and unsupported.
+- Clearing localStorage or changing the browser or Origin may lose Like state and limit continuity. Anonymous browser identification is not identity authentication.
+- Abnormal access detection can combine visitors on shared networks or reverse proxies and cause false blocks. New installations enable detection and automatic blocking. Inspect history and tune conditions. β-2 has fail-open paths when detection fails; success or protection of the public API as a whole is not guaranteed.
+- After a partial installation failure, consult recovery procedures rather than deleting settings/progress markers unconditionally or reinstalling. A session-storage 503 may occur after settings have changed; do not automatically resend.
+- A time zone change archives aggregates, including pending events, as CSV and then resets aggregates and public counts. Archives are not automatically deleted. Prepare appropriate backups.
+- The administrative HTTP exception is only for explicitly configured, direct-loopback local development. Do not use it for LAN/tunnel/proxy exposure or as an authentication-bypass recovery method.
 
-## Admin display and password protection
+## Documentation
 
-Before login, URL language/theme choices affect only that session's temporary display. They survive failed logins and reloads without saving shared preferences. Successful login clears them and restores saved settings. Authenticated language/theme changes are saved using CSRF-protected POST requests.
+The following guides apply to v1.0.0-beta2. docs/ and screenshots are not bundled in the distribution ZIP; accessing them requires an Internet connection. install/readme.php displays README as plain text rather than rendering images or Markdown links. Copy the required URL to open it.
 
-New or explicitly changed passwords require at least 12 Unicode code points, at most 72 UTF-8 bytes, valid UTF-8, and no NUL characters. Character and byte counts differ: 24 ordinary Japanese characters occupy 72 bytes. Leading/trailing spaces are preserved; there is no Unicode normalization or truncation. Hashing explicitly uses bcrypt with PHP's default cost. No additional mbstring extension is required.
+- [Installation, operations, configuration, and recovery (Installation)](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/docs/Installation.en.md)
+- [Behavior, data, and security (Specification)](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/docs/Specification.en.md)
+- [Development status, verification scope, and outstanding issues (DevelopmentPlan)](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/docs/DevelopmentPlan.en.md)
 
-Existing hashes are not automatically changed during upgrades or login. Legacy login retains its 1024-byte input limit. Old bcrypt passwords longer than 72 bytes cannot distinguish characters beyond the first 72 bytes. Their original length and tail cannot be recovered from the hash; explicitly change the password to adopt the new rules.
+## License and Credits
 
-Use Change administrator password in Admin and operation settings. Enter the current password, new password, and confirmation. Authentication, CSRF, current-password verification, the new rules, and exact confirmation are required. Attempts are limited to five per minute per session. Failure preserves the old hash and never redisplays plaintext passwords. Success ends the current session; other signed-in sessions expire on their next admin request. Sign in again with the new password. Back navigation and POST replay cannot change it again.
+GPL-3.0-only (GNU General Public License version 3 only). See the bundled [LICENSE](LICENSE) for the full text. No additional proprietary conditions restrict the use, modification, or redistribution permitted by the GPL.
 
-Each authenticated request checks a credential fingerprint. Sessions created before this update lack it and require one new login. The credentials JSON format is unchanged; the application secret and database connection are preserved. There is no unauthenticated password reset. Keep web access to config denied.
+Created by Nikukiu-SYSTEMs (にくきぅSYSTEMs), pronounced “Nikukiu Systems.”
 
-## Concurrent installation and recovery
-
-New installation and completion retries use a nonblocking exclusive lock on config/.installer.lock. State is rechecked after acquiring it. New installation exclusively creates config/.installer-in-progress. Failure to acquire the lock stops before application writes. Existing config, credentials, and secrets are not deleted or replaced, and database tables are not reset.
-
-Only normal completion removes the progress marker. The lock file remains for reuse. Do not remove a progress marker merely because time has passed. A remaining progress marker means partial installation even if the completion marker exists.
-
-After confirming that the earlier installer process stopped, Retry completion is available only when the saved config, credentials, and required database tables can be verified. Recovery only creates a missing completion marker and removes the progress marker; it never regenerates secrets or credentials. Missing config/credentials or an invalid existing completion marker prevents automatic recovery. Preserve artifacts and consult the backup and server administrator.
-
-The filesystem must support file locking and exclusive file creation. Test concurrency on shared/network filesystems and different PHP execution modes. Do not bypass locking in an unverified environment. No cron or Redis is required.
-
-## Editing language and messages
-
-Edit widget text in `lang/widget.ja.json` and `lang/widget.en.json`. To change a success message, keep its key (such as `like01`) and edit the value. To add an option, add the same numbered key to both JSON files. JSON does not support comments.
-
-## Access concentration detection (introduced in beta1)
-
-The Access concentration detection tab shows monitoring, current blocks and the last 60 days of history above the settings. History offers 20 (default), 50, 80 or 100 entries per page, with the choice saved in the browser. New installations default to detection ON and automatic blocking ON. Existing saved settings are preserved; legacy installations without a settings file retain detection ON and automatic blocking OFF. Turning detection OFF also turns automatic blocking OFF and disables its control. Turning detection back ON enables the control but does not turn automatic blocking back ON. Detection-only operation is available. Legacy detection OFF / automatic blocking ON settings are normalized to both OFF when read and cannot be saved in that inconsistent state.
-
-| Admin setting | API | Default monitoring window | Default request count |
-| --- | --- | --- | --- |
-| Retrieving Like information | `state.php` | 60 seconds | 2,400 |
-| Sending a Like | `like.php` | 60 seconds | 240 |
-
-Retrieving Like information checks Like counts and whether a Like has been sent; these requests normally run automatically. The default detects more than 2,400 requests in 60 seconds. A button updating every five seconds makes approximately 12 requests/minute in a simple model. Assuming 100 buttons update independently gives approximately 1,200 requests/minute; the default provides twice that allowance. This is an assumed model, not a measured traffic figure. Buttons sharing an identifier share their requests, and actual traffic depends on implementation, visible pages, update intervals and usage.
-
-Sending a Like is a request made when a visitor presses the Like button. The default detects more than 240 requests in 60 seconds. This averages four requests/second, a provisional frequency intended to exceed ordinary manual use. It was not derived from measured traffic and does not guarantee that detected requests are attacks.
-
-Detection occurs when requests from the same connection exceed the specified count within the configured time window. Counts are independent per connection and API, using one-second rolling buckets. Time window to monitor (seconds) accepts 10–3,600 seconds; Request count that triggers detection accepts 1–1,000,000 requests. Detection-only history is deduplicated while a previous detection remains in that connection/API window.
-
-These are provisional defaults for general use, and appropriate values vary by site. Visitors sharing an IP may have their requests combined; detected traffic is not necessarily abusive. Review the history even when using automatic blocking with the initial settings, and tune the rules for your site's size and traffic.
-
-Valid OPTIONS is excluded. Invalid input, rejected origins and invalid OPTIONS are counted. Rejected origins retain 403; valid OPTIONS retains 204 even during a block. Allowed origins receive CORS-enabled 429 with `Retry-After` when blocked, distinguished from the existing per-browser Like quota. Only the two public APIs are blocked; Admin and ordinary site pages remain available.
-
-When automatic blocking is enabled, exceeding a detection rule blocks the connection from both public APIs for 48 hours. Blocks expire 48 hours after creation. Admin can confirm a release using a management ID, which resets both API counters. After expiry or manual release, exceeding a rule again creates a new history and a new 48-hour block, without escalation or permanent blocks. Detection OFF stops new detections and removes counters; automatic blocking OFF stops new automatic blocks. Active blocks remain in effect until expiry regardless of either setting, without extending their deadlines. Manual release remains available. After release, new detection and reblocking follow the current settings. Admin displays times in the aggregation timezone, including the abbreviation applicable to each timestamp and daylight saving time. Internal storage and expiry checks remain UTC. Changing the timezone does not change detection history, block deadlines or protection settings.
-
-Only purpose-separated HMAC values derived from the existing `app_secret` and `REMOTE_ADDR` are stored in short-term counters and active block management. Forwarded headers are ignored. **Shared networks and reverse proxies can combine multiple visitors into one connection and cause false blocks.** History contains no IP addresses or IP hashes.
-
-Expired counters, blocks and history are deleted on the next public API check or authenticated Admin access. Valid OPTIONS also runs cleanup without being counted. With no traffic, physical deletion is delayed, but expired blocks cannot extend beyond their deadline. History becomes eligible for deletion 60 days after detection. No cron is required.
-
-This ZIP is for new installations only. It contains `install/install.sql` and excludes migration SQL for existing installations. Do not use it to overwrite an existing installation or rerun its installer.
-
-Before migration, or if protection encounters a database/locking error, the public APIs continue without this protection and log the problem. Admin reports unavailable schema/read failures. Monitor logs and verify operation after deployment. A short database-scoped lock serializes protection transactions. This application feature cannot stop network-scale attacks before they reach PHP or the database.
-
-## Beta2 status and known limitations
-
-Beta2 is a prerelease, not the final release, and precedes the planned ERAMINAN.jp field test. Verification in the actual operating environment is pending. The ZIP is for new installations only and must not overwrite an existing installation.
-
-Separating `config/`, `src/` or other application directories outside the document root is currently untested and unsupported. Preserve the relative directory layout and deny web access to `config/` and `log/`.
-
-## Installation location and URLs
-
-The default example is `/pollyanna/`. You may rename it, use nested subdirectories or place its contents directly in the document root. Preserve the relative layout of `admin/`, `api/`, `assets/`, `src/` and other directories, and avoid conflicts with existing files. For a document-root installation, change the embedding URLs to `/assets/like.css` and `/assets/like.js`. Relative URLs resolve against the embedding HTML page, so check each page. Loading assets from another origin requires complete HTTPS URLs and suitable origin permissions. CORS is not user authentication.
-
-A `cgi-bin/` directory may treat all files as CGI programs and is not a recommended default. Use it only after verifying PHP execution and static CSS/JavaScript delivery. Review origin settings when changing host, scheme or port. Automatically generated identifiers depend on page path and DOM order; moving pages may change the counting target.
-
-## Authenticated widget test
-
-After deleting `install/`, sign in to Admin and open Widget test at `admin/?view=widget-test`. Two buttons allow checking shared-identifier synchronization, count updates and normal click limits. They use the real API and database. Test clicks are included in normal statistics and rankings, and access anomaly protection applies. Administrator authentication for the page does not authenticate users of the public API.
-
-The fixed value is `Pollyanna-test_01（ポリアンナテスト_01）`. If Japanese is inconvenient, edit the single `$testIdentifier` definition in `admin/widget-test-view.php`. Changing it creates a different counting target and leaves previous data intact. The limit is 100 Unicode code points. Whitespace, control characters and ASCII symbols other than `-` and `_` are not allowed. No Unicode normalization is applied.
-
-Examples include Chinese (`测试01`), Korean (`테스트01`), Arabic (`اختبار01`), Hebrew (`בדיקה01`), Russian (`Тест01`) and Greek (`Δοκιμή01`). Accepting these strings does not guarantee correct RTL presentation. Do not insert directional control characters into identifiers. Use `bdi` or `dir="auto"` for display isolation and verify mixed-script presentation and copying in a browser.
-
-## Post-installation security and maintenance
-
-Delete `install/` and verify that HTTP access to `config/` and `log/` is denied. Even on Apache, `.htaccess` must be enabled appropriately. On Linux, verify ownership, write permissions and SELinux; do not make the entire installation mode 777. Use HTTPS for Admin and securely back up the database, configuration, secret, credentials and archives. PHP also requires a working session storage location. No cron, Redis, external API or additional library is required. AlmaLinux 10.1 is a planned installation verification environment, not a verified platform merely because it is named here.
-
-A timezone change saves aggregates, including pending Likes, as CSV under `log/` and resets active aggregates only after successful archival. Archives are not automatically deleted. Resume an interrupted change from Admin and operation settings. This reset does not change access anomaly history or block deadlines.
+Copyright (C) 2026 Nikukiu-SYSTEMs

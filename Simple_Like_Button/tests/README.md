@@ -111,7 +111,7 @@ separately. It copies admin/source/language files into an owned OS temporary tre
 uses dummy credentials, temporary session files and SQLite memory only, and removes
 the tree/server on exit. It simulates a trusted TLS terminator over loopback HTTP;
 it does not validate real TLS or browser Cookie behavior. See
-`docs/AdminSecurityMigration.md` for settings, migration and verification limits.
+[Installation](../docs/Installation.en.md) for settings and migration, and [DevelopmentPlan](../docs/DevelopmentPlan.en.md) for verification scope and limitations.
 
 For real parallel file-session checks, separately run
 `php tests/admin-session-concurrency-tests.php`. It uses 2-3 local CLI workers,
