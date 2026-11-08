@@ -2,7 +2,7 @@
 
 Creator: にくきぅSYSTEMs (Nikukiu-SYSTEMs)
 
-Status: Awaiting review of the documentation restructuring. Applies to v1.0.0-beta2. [Specification](Specification.en.md) is authoritative for behavioral rules; [Installation](Installation.en.md) is authoritative for operations and recovery. The three new documents do not replace the existing Japanese development references until approval.
+Status: Approved documentation for the published v1.0.0-beta2 pre-release. [Specification](Specification.en.md) is authoritative for behavioral rules; [Installation](Installation.en.md) is authoritative for operations and recovery. The six current Japanese/English documents are the reference set; the 19 old originals are preserved in archive/legacy/.
 
 This consolidation uses AI assistance for document comparison and editing. The creator's responsibility for design/specification decisions is distinct from AI assistance with implementation, review, and testing. Where the record does not identify who performed a historical task, no attribution is inferred. This phase consists only of static comparison and documentation; program and database tests have not been rerun.
 
@@ -24,9 +24,9 @@ Button embedding/sharing/automatic identifiers, state retrieval, Japanese/Englis
 
 ### 1.1 Applicable Version and Documentation Versioning
 
-The three new documents apply to v1.0.0-beta2 and are all awaiting review. Including historical versions and plans for v1.0.0 and v1.0.1 or later does not mean the current code is at those versions. No separate document version numbers are added.
+The six current Japanese/English documents apply to the published v1.0.0-beta2 and have completed approval, translation, and comparison review. Including historical versions and plans for v1.0.0 and v1.0.1 or later does not mean the current code is at those versions. No separate document version numbers are added.
 
-After the creator's approval, Git commits will record the relationship between the target code and approved documentation. Releases will be associated through tags actually created and verified and their commits. The v1.0.0-beta2 notation identifies applicability; it does not assert that a tag with that name or a new commit has been created. Do not record uncreated or unverified commit IDs or tags as completed work.
+The published β-2 code and documentation are associated through annotated tag v1.0.0-beta2 and commit 08d6d3c0bbec051e9f602a68d9c70dc1f0b28892. The publication snapshot remains available through the tag. Subsequent documentation corrections are tracked by Git commits on main without rewriting the existing tag, Release, or distribution ZIP.
 
 When code changes in the future, update behavioral rules in Specification, operations/environment/recovery conditions in Installation, and implementation status/outstanding issues/test results here. Separate intended adoption from implemented features, and record the environment, scope, and results when tests finish. Review changed descriptions again, then record the code/document relationship after approval. Do not reinterpret released history or test records according to later specifications.
 
@@ -231,7 +231,7 @@ Existing README text describes an “implementation minimum of 8.1” and needs 
 - New Web abnormal access settings enable automatic blocking, but AccessProtectionService fallback defaults disable it. Existing settings must not be changed in bulk; defaults need to be explained by installation path.
 - Initial research proposals for Origin normalization, IDN, trailing dots, and public suffix handling must not automatically become established rules. Current OriginPolicy validates ASCII hosts and related syntax. Check adopted scope and safe permission conditions.
 - Old beta migration English says “6 times in 6 hours,” whereas Japanese and old code say “10 times in 6 hours.” Do not carry the mistranslation into the current specification.
-- The 3 old English design documents contain references to consultation with a person, a “two types”/3-item inconsistency, outdated structure, and future specifications. Reconstruct English after approval of the authoritative Japanese documents.
+- The 3 old English design documents contain references to consultation with a person, a “two types”/3-item inconsistency, outdated structure, and future specifications. The three current English documents have been reconstructed from the approved Japanese sources and comparison-reviewed; they are distinct from the old English originals.
 - Do not confuse the old Review's settings-table proposal with current config/JSON settings. Do not transfer old logs/ notation or the verification page's 30 events into current log/ and normal 500-event specifications.
 
 The old Review's question about an unavailable IP is addressed in current api/bootstrap.php by a path that catches access-detection exceptions, writes a generic log, and continues other public API processing. Missing required tables similarly prevent use of detection. Describe this as a limit on detection guarantees during failure, not as disabling all input validation or Like limits. Check required tables and configuration before operation.
@@ -272,9 +272,9 @@ Organize implementation/test results at each stage to determine commit scope and
 
 ### 5.5 Remaining Documentation Restructuring and PHP Display Work
 
-These three documents await review. Check inheritance from the 19 documents, cross-references, and unresolved specification items, then switch references in README and related documents after the creator's approval. Archiving/untracking the existing 19 documents, reconstructing English, and committing belong to separate approval phases.
+Approval of the Japanese authoritative documents, English translation/comparison review, README reference changes, archiving of the 19 old originals and audit record, and the β-2 commit/tag/Release publication are complete. The 19 originals remain tracked in Git; they have not been untracked. Outstanding specifications and unperformed tests remain tracked here.
 
-There is a plan to implement and verify the unsupported-PHP warning with the necessary explanation. Program changes are outside this phase; the next phase's instructions will determine when work starts. Retain the policy of resolving differences affecting safety or correct operation before the stable release.
+There is a plan to implement and verify the unsupported-PHP warning with the necessary explanation. The warning remains unimplemented, and the start date for the code change has not been determined. Retain the policy of resolving differences affecting safety or correct operation before the stable release.
 
 ## 6. Work Categories and Plans for v1.0.1 and Later
 
@@ -486,7 +486,7 @@ The following URLs preserve sources recorded in the old mobile research. Externa
 
 ## 8. The 19 Source Documents and Information Preservation
 
-The following mapping is retained for content comparison until restructuring is complete. It does not make old documents secondary authoritative copies of the current specification. Old files are not moved, deleted, or edited in this phase.
+The following historical mapping records content comparison during consolidation; it does not make old documents secondary authoritative copies of the current specification. The 19 old originals have been moved unchanged to archive/legacy/. Unless stated otherwise, planned or unperformed work in this chapter describes the restructuring stage at that time.
 
 | Source file | Consolidation destination and retained information |
 | --- | --- |
@@ -519,11 +519,11 @@ The following mapping is retained for content comparison until restructuring is 
 
 ### 8.2 Information Management After Restructuring
 
-The Chapter 8 mapping, explanations of material not copied verbatim, and verification scope specific to restructuring may move to historical material with the creator's approval after consolidation approval, inheritance checks, reference switching, and original-preservation checks are complete. They remain here because restructuring is currently incomplete.
+The Chapter 8 mapping, explanations of material not copied verbatim, and verification scope specific to restructuring may move to historical material with the creator's approval after consolidation approval, inheritance checks, reference switching, and original-preservation checks are complete. Consolidation and publication are complete; the mapping remains here as restructuring history.
 
 Do not move implementation status, outstanding issues, development plans, Chapter 3 test evidence/guarantee boundaries, or the Section 7.3 unperformed-test checklist into historical material merely to reduce line counts. Preserve decision rationale and technical limitations during transfer.
 
-### 8.3 Verification Scope for This Phase
+### 8.3 Verification Scope During Consolidation (Historical)
 
 Check preservation of the existing 19 documents, the inheritance mapping, important operational information, PHP policy, separation of old specifications, headings/tables/code/relative links in the three new documents, and clear differences in code. No application regression tests or database operations are performed. Existing README references are also retained until review approval.
 
@@ -535,7 +535,7 @@ After corrections, totals are 431 in ① correctly inherited, 975 in ④ preserv
 
 Audit category ⑤ does not establish specifications. Track outstanding items in Chapters 4, 6, and 7 without promoting them to established decisions absent the creator's judgment or additional verification. The old 19 originals are unchanged. Historical storage of audit records follows Section 8.2.
 
-### 8.5 Publication-Preparation Categories After the Second Pass
+### 8.5 Publication-Preparation Categories After the Second Pass (Historical)
 
 This assessment concerns the β-2 pre-release. Do not treat completion of stable-release verification as a prerequisite for publishing β-2. These are investigation-result categories, not instructions to implement or publish in this phase.
 
@@ -552,4 +552,4 @@ This assessment concerns the β-2 pre-release. Do not treat completion of stable
 | C: Stable-release or follow-up work | Real-site tests/user guide/sample site in D5 | β-2 is a pre-release before field testing; retain these as work through stable v1.0.0 |
 | C: Stable-release or follow-up work | Separation/IP-retention selection/retention reassessment/display proposals in D6–7 | Preserve existing v1.0.1 targets/later plans; distinguish decisions to investigate from decisions to adopt features |
 
-Category A README changes, English/old-document publication policy, ZIP consistency, and GitHub reachability are outside this phase's editing scope and remain unperformed. Reflect category B limitations in publication explanations after approval of these three documents. Even for category C, if a concrete safety/count-preservation/correctness issue is found, reassess necessary pre-publication action under Chapter 5.
+The table preserves the second-pass classification. At that time, category A README changes, English/old-document publication policy, ZIP consistency, and GitHub reachability were outside consolidation scope and unperformed. README updates, English comparison review, original preservation, distribution ZIP comparison, and tagged-document reachability checks were subsequently completed, and β-2 was published as a pre-release. Category B limitations are reflected in the approved documentation and publication explanations; this does not resolve the unverified conditions themselves. Even for category C, if a concrete safety/count-preservation/correctness issue is found, reassess necessary pre-publication action under Chapter 5.

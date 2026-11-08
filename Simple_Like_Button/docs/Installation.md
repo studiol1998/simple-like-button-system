@@ -2,21 +2,19 @@
 
 制作者：にくきぅSYSTEMs（Nikukiu-SYSTEMs）
 
-状態：文書体系再編のレビュー待ち。対象はv1.0.0-beta2。動作規則は[現行仕様](Specification.md)、実装・試験・未解決事項は[開発計画](DevelopmentPlan.md)を参照する。本書は具体的な準備・操作・復旧の詳細を扱う。実際の設置・DB変更は本書作成時には行っていない。
+状態：公開済みプレリリースv1.0.0-beta2の承認済み文書。動作規則は[現行仕様](Specification.md)、実装・試験・未解決事項は[開発計画](DevelopmentPlan.md)を参照する。本書は具体的な準備・操作・復旧の詳細を扱う。実際の設置・DB変更は本書作成時には行っていない。
 
-適用対象はv1.0.0-beta2で、本文はレビュー待ちである。文書固有の版番号は追加しない。承認後はコードとの対応をGitコミットと実際に作成・確認したリリースタグで管理する。共通の版管理方針は[DevelopmentPlan](DevelopmentPlan.md)第1.1節を参照する。
+適用対象はv1.0.0-beta2である。文書固有の版番号は追加しない。公開時点の内容はv1.0.0-beta2タグで、公開後の文書校正はGitコミットで管理する。共通の版管理方針は[DevelopmentPlan](DevelopmentPlan.md)第1.1節を参照する。
 
 ## 1. 動作環境・導入可否・検証実績
 
 | PHP | 公式サポート | インストール可否・表示 |
 | --- | --- | --- |
-| 8.3以上 | 正式動作要件 | 他の必須条件を満たせば許可 |
-| 8.1～8.2 | サポート対象外 | 現行インストーラーの通過を許容。非サポート警告は今後の実装予定であり、現在表示されるとは限らない |
-| 8.0以下 | サポート対象外 | インストール不可 |
+| 8.3以上 | 対象 | 可（必須条件を満たす場合） |
+| 8.1～8.2 | 対象外 | 可（非サポート警告は未実装） |
+| 8.0以下 | 対象外 | 不可 |
 
 現行インストーラーの環境確認は8.1.0以上の判定である。8.3未満で通過しても公式サポートを意味しない。8.0以下の拒否を、古いPHPで必ず案内画面を描画できる保証とはしない。
-
-PHP 8.1～8.2の警告表示は未実装としてDevelopmentPlanに記録する。
 
 記録された自動検証環境はPHP 8.5.12（CLI・組み込みHTTPサーバー）である。8.1、8.2、8.3等の全環境で正常動作を確認した意味ではない。セキュリティサポート期間内で必要な修正の適用されたPHPを使用し、Web PHPとCLI PHPを別々に確認する。
 
@@ -421,9 +419,19 @@ HTTPステータスだけで原因を断定せず、所有者が実際のURL・�
 
 既存試験の環境・範囲・限界は[DevelopmentPlan](DevelopmentPlan.md)第3章を参照する。模擬HTTPSやCLIでの成功は、本番TLS・Web PHP・ブラウザのCookie判定を検証したことにはならない。
 
-配布物はREADME・ライセンス・設定テンプレート・必要コードを許可リストで収録し、テスト・実設定・認証情報・セッション・ログを含めない。現在のdocs/はZIP対象外で、READMEから参照する資料とコードの版を揃える必要がある。本統合案の承認前にはREADMEの参照先を切り替えない。
+配布物はREADME・ライセンス・設定テンプレート・必要コードを許可リストで収録し、テスト・実設定・認証情報・セッション・ログを含めない。現在のdocs/はZIP対象外で、READMEから参照する資料とコードの版を揃える必要がある。公開済みβ-2のREADMEは、タグ固定の現行日英資料を参照する。
 
-### 10.1 ZIPを変更しない現行方針と公開時のリンク切替
+### 10.1 公開済みβ-2の配布物と説明書
+
+β-2は[Releaseページ](https://github.com/studiol1998/simple-like-button-system/releases/tag/v1.0.0-beta2)でプレリリース公開済みである。導入には添付のPollyanna-v1.0.0-beta2.zipを使用する。新規導入専用で、既存環境への上書き更新やインストーラー再実行には使用しない。
+
+配布物は37ファイルで、docs/は同梱しない。ZIP内READMEはネット接続で参照できるタグ固定の絶対URLを使用し、言語切替先のREADME日英とLICENSEはZIP内に存在する。公開時点の資料は[日本語README](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/README.md)、[英語README](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/README.en.md)から参照できる。リポジトリのmain上の校正と、タグ固定の公開時点の内容は区別する。
+
+install/readme.phpは同梱READMEをtext/plainで表示するため、Markdownリンク・画像を描画しない。必要な絶対URLをコピーして参照する。install/除去後も同梱READMEは手元で参照できる。公開済みのタグ・Release・ZIPは、この文書校正で変更しない。
+
+### 10.2 再編当時の公開準備記録（旧10.1節）
+
+以下は文書統合時に立てた公開担当者向け計画の履歴であり、現在の利用者向け設置手順ではない。「現在」「本工程」「未編集」「英語正本未作成」等は当時の状態を示す。READMEの参照先切替、英語版作成・対照検証、旧原本の保管、ZIP生成・検証、公開と到達確認はその後完了した。現在の案内は第10.1節を参照する。
 
 現行tools/build-release.ps1の許可リストは37ファイルで、README.md・README.en.md・install/readme.phpを含む一方、docs/を明示的に除外する。本工程ではZIP・許可リスト・READMEを変更しない。
 
@@ -434,7 +442,7 @@ GitHubで閲覧するアプリREADMEとZIP内のREADMEは同じ元ファイル�
 | 修正対象（本工程では未編集） | 現状と公開工程での修正先 |
 | --- | --- |
 | ルートREADME.mdの必要環境・導入方法 | 正式要件8.3以上と導入許容8.1以上を区別し、Simple_Like_Button/docs/Installation.md、Specification.md、DevelopmentPlan.mdへのリポジトリ相対リンクを追加する |
-| Simple_Like_Button/README.md・README.en.mdの管理通信資料参照（現在50行付近） | 現在はhttps://github.com/studiol1998/simple-like-button-system/blob/main/Simple_Like_Button/docs/AdminSecurityMigration.mdを参照。新日本語正本の承認・公開を確認してから同じリポジトリのSimple_Like_Button/docs/Installation.mdへ絶対URLを切り替える。英語正本未作成の間は日本語資料と明示する |
+| Simple_Like_Button/README.md・README.en.mdの管理通信資料参照（現在50行付近） | 現在は`https://github.com/studiol1998/simple-like-button-system/blob/main/Simple_Like_Button/docs/AdminSecurityMigration.md`を参照。新日本語正本の承認・公開を確認してから同じリポジトリのSimple_Like_Button/docs/Installation.mdへ絶対URLを切り替える。英語正本未作成の間は日本語資料と明示する |
 | 両アプリREADMEのPHP説明 | 正式サポート8.3以上、8.1～8.2は導入可だが対象外、警告は未実装、検証実績は8.5.12と区別する |
 | tests/README.mdの管理移行資料参照（現在114行付近） | 運用は../docs/Installation.md、検証範囲は../docs/DevelopmentPlan.mdへ変更し、Markdownリンクにする |
 | 新3文書の相互参照 | 現在の同一docs内の相対参照を維持。旧19文書の撤去後にも参照が残らないか最終確認する |

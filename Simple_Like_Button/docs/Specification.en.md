@@ -2,9 +2,9 @@
 
 Creator: にくきぅSYSTEMs (Nikukiu-SYSTEMs)
 
-Status: Awaiting review of the documentation restructuring. Applies to v1.0.0-beta2. This document consolidates the three current Japanese development reference documents and adopted designs; it does not replace the existing references before approval.
+Status: Approved documentation for the published v1.0.0-beta2 pre-release. This current specification consolidates the three previous Japanese development reference documents and adopted designs.
 
-This document applies to v1.0.0-beta2 and is awaiting review. No document-specific version number is added. After approval, the relationship between the documentation and code will be recorded through Git commits and release tags that have actually been created and verified. See Section 1.1 of [DevelopmentPlan](DevelopmentPlan.en.md) for the shared versioning policy.
+This document applies to v1.0.0-beta2. No document-specific version number is added. The published snapshot is recorded by the v1.0.0-beta2 tag; subsequent documentation corrections are tracked by Git commits. See Section 1.1 of [DevelopmentPlan](DevelopmentPlan.en.md) for the shared versioning policy.
 
 ## 1. Scope and Document Responsibilities
 

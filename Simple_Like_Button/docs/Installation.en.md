@@ -2,19 +2,19 @@
 
 Creator: にくきぅSYSTEMs (Nikukiu-SYSTEMs)
 
-Status: Awaiting review of the documentation restructuring. Applies to v1.0.0-beta2. See the [current specification](Specification.en.md) for behavioral rules and the [development plan](DevelopmentPlan.en.md) for implementation status, tests, and outstanding issues. This guide provides detailed preparation, operation, and recovery procedures. No installation or database changes were performed when preparing this document.
+Status: Approved documentation for the published v1.0.0-beta2 pre-release. See the [current specification](Specification.en.md) for behavioral rules and the [development plan](DevelopmentPlan.en.md) for implementation status, tests, and outstanding issues. This guide provides detailed preparation, operation, and recovery procedures. No installation or database changes were performed when preparing this document.
 
-This document applies to v1.0.0-beta2 and is awaiting review. No document-specific version number is added. After approval, the relationship between the documentation and code will be recorded through Git commits and release tags that have actually been created and verified. See Section 1.1 of [DevelopmentPlan](DevelopmentPlan.en.md) for the shared versioning policy.
+This document applies to v1.0.0-beta2. No document-specific version number is added. The published snapshot is recorded by the v1.0.0-beta2 tag; subsequent documentation corrections are tracked by Git commits. See Section 1.1 of [DevelopmentPlan](DevelopmentPlan.en.md) for the shared versioning policy.
 
 ## 1. Runtime Requirements, Installation Eligibility, and Verification Record
 
-| PHP | Official support | Installation eligibility and display |
+| PHP | Official support | Installation / display |
 | --- | --- | --- |
-| 8.3 or later | Official runtime requirement | Permitted if the other mandatory conditions are met |
-| 8.1–8.2 | Outside support | The current installer permits these versions. An unsupported-version warning is planned but is not necessarily displayed now |
-| 8.0 or earlier | Outside support | Installation is not permitted |
+| 8.3 or later | Supported | Allowed (if requirements are met) |
+| 8.1–8.2 | Unsupported | Allowed (unsupported-version warning not implemented) |
+| 8.0 or earlier | Unsupported | Not allowed |
 
-The current installer's environment check accepts 8.1.0 or later. Passing on a version below 8.3 does not confer official support. Rejection of 8.0 and earlier does not guarantee that an explanatory screen can always be rendered on old PHP versions. The PHP 8.1–8.2 warning is recorded as not implemented in DevelopmentPlan.
+The current installer's environment check accepts 8.1.0 or later. Passing on a version below 8.3 does not confer official support. Rejection of 8.0 and earlier does not guarantee that an explanatory screen can always be rendered on old PHP versions.
 
 The recorded automated verification environment is PHP 8.5.12 (CLI and the built-in HTTP server). This does not mean correct operation has been verified on all environments such as 8.1, 8.2, and 8.3. Use PHP within its security support period with necessary fixes applied, and check Web PHP and CLI PHP separately.
 
@@ -324,9 +324,19 @@ After a new installation, check install/ removal, the correct administrator URL/
 
 See Chapter 3 of [DevelopmentPlan](DevelopmentPlan.en.md) for existing test environments, scope, and limitations. Success with simulated HTTPS or CLI does not verify production TLS, Web PHP, or browser cookie decisions.
 
-Distribution uses an allowlist for README, licenses, configuration templates, and required code, excluding tests, actual configuration, credentials, sessions, and logs. docs/ is currently excluded from the ZIP. Documentation referenced from README must match the code version. Do not switch README references before approval of this consolidation proposal.
+Distribution uses an allowlist for README, licenses, configuration templates, and required code, excluding tests, actual configuration, credentials, sessions, and logs. docs/ is currently excluded from the ZIP. Documentation referenced from README must match the code version. The published β-2 READMEs reference the current Japanese/English documentation pinned to the release tag.
 
-### 10.1 Current ZIP Preservation Policy and Publication-Time Link Changes
+### 10.1 Published β-2 Distribution and Documentation
+
+β-2 is published as a pre-release on its [Release page](https://github.com/studiol1998/simple-like-button-system/releases/tag/v1.0.0-beta2). Install using the attached Pollyanna-v1.0.0-beta2.zip. It is for new installations only, not overwrite updates or installer reruns on existing installations.
+
+The distribution contains 37 files and excludes docs/. The bundled READMEs use absolute URLs pinned to the release tag for online documentation; the Japanese/English README language-switch targets and LICENSE exist inside the ZIP. Access publication-time documentation from the [Japanese README](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/README.md) or [English README](https://github.com/studiol1998/simple-like-button-system/blob/v1.0.0-beta2/Simple_Like_Button/README.en.md). Distinguish subsequent corrections on main from the publication snapshot pinned to the tag.
+
+install/readme.php displays the bundled README as text/plain without rendering Markdown links or images. Copy the required absolute URL to open it. The bundled README remains available locally after install/ removal. These documentation corrections do not change the published tag, Release, or ZIP.
+
+### 10.2 Publication Preparation During Restructuring (Former Section 10.1)
+
+The following preserves the publication team's plan made during consolidation, not current installation instructions for users. Terms such as “current,” “this phase,” “not edited,” and “English documents do not yet exist” describe the state at that time. README references, English translation/comparison review, original archiving, ZIP generation/verification, publication, and reachability checks were subsequently completed. See Section 10.1 for current guidance.
 
 The current tools/build-release.ps1 allowlist contains 37 files, including README.md, README.en.md, and install/readme.php, while explicitly excluding docs/. This phase does not change the ZIP, allowlist, or README.
 
@@ -335,7 +345,7 @@ The application README viewed on GitHub and the README in the ZIP are distribute
 | Target for revision (not edited in this phase) | Current state and publication-phase destination |
 | --- | --- |
 | Requirements/installation in root README.md | Distinguish official requirements of 8.3 or later from installer acceptance of 8.1 or later. Add repository-relative links to Simple_Like_Button/docs/Installation.md, Specification.md, and DevelopmentPlan.md |
-| Administrative transport documentation in Simple_Like_Button/README.md and README.en.md (currently around line 50) | Currently references https://github.com/studiol1998/simple-like-button-system/blob/main/Simple_Like_Button/docs/AdminSecurityMigration.md. After approval and publication of the new authoritative Japanese documents are confirmed, switch to an absolute URL for Simple_Like_Button/docs/Installation.md in the same repository. Identify it as Japanese documentation while authoritative English documents do not yet exist |
+| Administrative transport documentation in Simple_Like_Button/README.md and README.en.md (currently around line 50) | Currently references `https://github.com/studiol1998/simple-like-button-system/blob/main/Simple_Like_Button/docs/AdminSecurityMigration.md`. After approval and publication of the new authoritative Japanese documents are confirmed, switch to an absolute URL for Simple_Like_Button/docs/Installation.md in the same repository. Identify it as Japanese documentation while authoritative English documents do not yet exist |
 | PHP descriptions in both application READMEs | Distinguish official support for 8.3 or later, permitted but unsupported installation on 8.1–8.2, the not-implemented warning, and the verification record on 8.5.12 |
 | Administrative migration reference in tests/README.md (currently around line 114) | Change operations to ../docs/Installation.md and verification scope to ../docs/DevelopmentPlan.md, using Markdown links |
 | Cross-references among the three new documents | Retain current relative references within docs/. Finally check that no references remain after withdrawal of the old 19 documents |
